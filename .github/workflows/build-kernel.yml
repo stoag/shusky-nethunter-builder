@@ -50,17 +50,17 @@ jobs:
     - name: Compile Pixel 8 Pro Kernel
       run: |
         cd workspace
-        # Tensor chips use Google's build script wrapper
-        LTO=thin BUILD_CONFIG=private/gs-google/build.config.shusky build/build.sh
+        # Android 16 (6.1) uses Kleaf/Bazel via a device-specific wrapper script
+          BUILD_AOSP_KERNEL=1 ./build_shusky.sh
 
     - name: Package into AnyKernel3
       run: |
         git clone https://github.com/osm0sis/AnyKernel3 --depth=1 AnyKernel3
         
-        # Copy compiled image and compiled modules
-        cp workspace/out/android-gs-pixel-6.1/dist/Image.lz4 AnyKernel3/
+        # In the 6.1 Kleaf tree, the output path is out/shusky/dist/
+        cp workspace/out/shusky/dist/Image.lz4 AnyKernel3/
         mkdir -p AnyKernel3/modules/vendor/lib/modules
-        cp workspace/out/android-gs-pixel-6.1/dist/*.ko AnyKernel3/modules/vendor/lib/modules/ || true
+        cp workspace/out/shusky/dist/*.ko AnyKernel3/modules/vendor/lib/modules/ || true
         
         # Configure AnyKernel for shusky
         sed -i 's/device.name1=/device.name1=husky/g' AnyKernel3/anykernel.sh
