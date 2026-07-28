@@ -1,0 +1,78 @@
+name: Build Pixel 8 Pro NetHunter Kernel
+
+on:
+  workflow_dispatch: # Allows manual trigger via GitHub interface
+
+jobs:
+  build-kernel:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Free Runner Disk Space
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf "/usr/local/share/boost"
+        sudo apt-get clean
+        df -h
+
+    - name: Install Build Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y bc build-essential curl flex bison libssl-dev \
+          libelf-dev python3 repo git zip libncurses5-dev
+
+    - name: Configure Git Credentials
+      run: |
+        git config --global user.name "Builder"
+        git config --global user.email "builder@localhost"
+
+    - name: Initialize & Sync Google Kernel Source
+      run: |
+        mkdir workspace && cd workspace
+        # Target the official Android 14 / Tensor G3 (shusky) branch
+        repo init -u https://android.googlesource.com/kernel/manifest \
+          -b android-gs-shusky-5.15-android14 --depth=1
+        
+        # Sync only what is necessary to conserve storage and bandwidth
+        repo sync -c -j$(nproc) --no-tags --no-clone-bundle
+
+    - name: Apply Kali NetHunter Drivers & Patches
+      run: |
+        cd workspace/aosp/common # Main GKI Linux kernel tree
+        
+        # Download and apply Kali mac80211 Wi-Fi injection & HID patches
+        # Note: If git apply fails due to line shifts, use 'patch -p1'
+        curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/5.15/0001-mac80211-injection.patch | git apply || true
+        curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/5.15/0002-hid-gadget.patch | git apply || true
+
+    - name: Compile Pixel 8 Pro Kernel
+      run: |
+        cd workspace
+        # Tensor chips use Google's build script wrapper
+        LTO=thin BUILD_CONFIG=private/gs-google/build.config.shusky build/build.sh
+
+    - name: Package into AnyKernel3
+      run: |
+        git clone https://github.com/osm0sis/AnyKernel3 --depth=1 AnyKernel3
+        
+        # Copy compiled image and compiled modules
+        cp workspace/out/android-gs-pixel-5.15/dist/Image.lz4 AnyKernel3/
+        mkdir -p AnyKernel3/modules/vendor/lib/modules
+        cp workspace/out/android-gs-pixel-5.15/dist/*.ko AnyKernel3/modules/vendor/lib/modules/ || true
+        
+        # Configure AnyKernel for shusky
+        sed -i 's/device.name1=/device.name1=husky/g' AnyKernel3/anykernel.sh
+        sed -i 's/device.name2=/device.name2=shiba/g' AnyKernel3/anykernel.sh
+        sed -i 's/BLOCK=auto/BLOCK=boot/g' AnyKernel3/anykernel.sh
+        sed -i 's/IS_SLOT_DEVICE=0/IS_SLOT_DEVICE=1/g' AnyKernel3/anykernel.sh
+
+        cd AnyKernel3
+        zip -r9 ../Custom-Shusky-NetHunter-Kernel.zip * -x .git README.md
+
+    - name: Upload Flashable ZIP Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: NetHunter-Shusky-Kernel
+        path: Custom-Shusky-NetHunter-Kernel.zip
