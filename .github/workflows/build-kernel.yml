@@ -40,7 +40,7 @@ jobs:
 
     - name: Apply Kali NetHunter Drivers & Patches
       run: |
-        cd workspace/aosp/common # Main GKI Linux kernel tree
+        cd workspace/common # Main GKI Linux kernel tree
         
         # Download and apply Kali mac80211 Wi-Fi injection & HID patches
         # Note: If git apply fails due to line shifts, use 'patch -p1'
