@@ -47,6 +47,86 @@ jobs:
         curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0001-mac80211-injection.patch | git apply || true
         curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0002-hid-gadget.patch | git apply || true
 
+    - name: Apply KernelSU Next & SUSFS Patches
+      run: |
+        cd workspace/common
+        
+        # 1. Install KernelSU Next (Dev Branch for SUSFS compatibility)
+        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s dev
+        
+        # 2. Clone the SUSFS patch repository (targeting GKI 6.1)
+        cd ../../
+        git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
+        
+        # 3. Copy the SUSFS modifications into the Kernel and KSU-Next directories
+        # Note: Even though we are using KSU-Next, the directory created is still named 'KernelSU'
+        cp susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch workspace/common/KernelSU/
+        cp susfs4ksu/kernel_patches/50_add_susfs_in_kernel-6.1.patch workspace/common/
+        cp -r susfs4ksu/kernel_patches/fs/* workspace/common/fs/
+        cp -r susfs4ksu/kernel_patches/include/linux/* workspace/common/include/linux/
+        
+        # 4. Apply the code patches
+        cd workspace/common/KernelSU
+        patch -p1 < 10_enable_susfs_for_ksu.patch
+        cd ../
+        patch -p1 < 50_add_susfs_in_kernel-6.1.patch
+        
+        # 5. Fix ABI symbol exports for Android 14+ GKI to ensure Wi-Fi modules work
+        rm -f android/abi_gki_protected_exports_aarch64
+        rm -f android/abi_gki_protected_exports_x86_64
+
+        # 6. Enable KSU, SUSFS, ConfigFS, and Modular Wi-Fi Drivers
+        cat << 'EOF' >> arch/arm64/configs/gki_defconfig
+        # KSU & SUSFS
+        CONFIG_KSU=y
+        CONFIG_KSU_SUSFS=y
+        CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y
+        CONFIG_KSU_SUSFS_SUS_PATH=y
+        CONFIG_KSU_SUSFS_SUS_MOUNT=y
+        CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y
+        CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y
+        CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y
+        CONFIG_KSU_SUSFS_SPOOF_UNAME=y
+        CONFIG_KSU_SUSFS_ENABLE_PATH_HIDING=y
+
+        # USB Arsenal & HID
+        CONFIG_CONFIGFS_FS=y
+        CONFIG_USB_CONFIGFS=y
+        CONFIG_USB_GADGETFS=y
+        CONFIG_USB_CONFIGFS_F_HID=y
+        CONFIG_USB_CONFIGFS_F_MASS_STORAGE=y
+        CONFIG_USB_CONFIGFS_F_ECM=y
+        CONFIG_USB_CONFIGFS_F_ACM=y
+
+        # Mac80211 Subsystem (Required for Injection)
+        CONFIG_MAC80211=y
+        CONFIG_MAC80211_RC_MINSTREL=y
+        CONFIG_MAC80211_RC_MINSTREL_HT=y
+        CONFIG_MAC80211_RC_MINSTREL_VHT=y
+        CONFIG_MAC80211_RC_DEFAULT_MINSTREL=y
+        CONFIG_MAC80211_MESH=y
+        CONFIG_CFG80211=y
+
+        # External Wi-Fi Adapters (MUST BE =m)
+        CONFIG_WLAN_VENDOR_ATH=y
+        CONFIG_ATH9K_HTC=m
+        CONFIG_WLAN_VENDOR_RALINK=y
+        CONFIG_RT2X00=m
+        CONFIG_RT2800USB=m
+        CONFIG_RT2800USB_RT3573=m
+        CONFIG_RT2800USB_RT53XX=m
+        CONFIG_RT2800USB_RT55XX=m
+        CONFIG_RT2800USB_UNKNOWN=m
+        CONFIG_WLAN_VENDOR_REALTEK=y
+        CONFIG_RTL8187=m
+        
+        # External BT & Networking
+        CONFIG_BT_HCIBTUSB=m
+        CONFIG_WIREGUARD=y
+        CONFIG_CAN=y
+        CONFIG_CAN_RAW=y
+        EOF
+      
     - name: Compile Pixel 8 Pro Kernel
       run: |
          cd workspace
