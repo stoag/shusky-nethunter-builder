@@ -47,11 +47,11 @@ jobs:
         curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0001-mac80211-injection.patch | git apply || true
         curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0002-hid-gadget.patch | git apply || true
 
-    - name: Compile Pixel 8 Pro Kernel
+      - name: Compile Pixel 8 Pro Kernel
       run: |
         cd workspace
         # Android 16 (6.1) uses Kleaf/Bazel via a device-specific wrapper script
-          BUILD_AOSP_KERNEL=1 ./build_shusky.sh
+        BUILD_AOSP_KERNEL=1 ./build_shusky.sh
 
     - name: Package into AnyKernel3
       run: |
