@@ -1,4 +1,4 @@
-name: Build Pixel 8 Pro Tweakers Paradise - NetHunter + susFS + optimization + configFS
+name: Build Pixel 8 Pro Tweakers Paradise - NetHunter + susFS + KernelSU Next + optimization + configFS
 
 on:
   workflow_dispatch: # Allows manual trigger via GitHub interface
