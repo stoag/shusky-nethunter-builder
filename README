@@ -37,5 +37,3 @@ insmod /vendor/lib/modules/rtl8187.ko
 
 
 
-
-Realtek: insmod /vendor/lib/modules/rtl8187.ko
