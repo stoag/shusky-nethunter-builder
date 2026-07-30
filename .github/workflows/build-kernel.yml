@@ -40,7 +40,7 @@ jobs:
 
     - name: Apply Kali NetHunter Drivers & Patches
       run: |
-        cd workspace/common # Main GKI Linux kernel tree
+        cd workspace/aosp # Main GKI Linux kernel tree
         
         # Download and apply Kali mac80211 Wi-Fi injection & HID patches
         # Note: If git apply fails due to line shifts, use 'patch -p1'
@@ -49,24 +49,23 @@ jobs:
 
     - name: Apply KernelSU Next & SUSFS Patches
       run: |
-        cd workspace/common
+        cd workspace/aosp
         
         # 1. Install KernelSU Next (Dev Branch for SUSFS compatibility)
         curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s dev
         
         # 2. Clone the SUSFS patch repository (targeting GKI 6.1)
-        cd ../../
+        cd ../
         git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
         
         # 3. Copy the SUSFS modifications into the Kernel and KSU-Next directories
-        # Note: Even though we are using KSU-Next, the directory created is still named 'KernelSU'
-        cp susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch workspace/common/KernelSU/
-        cp susfs4ksu/kernel_patches/50_add_susfs_in_kernel-6.1.patch workspace/common/
-        cp -r susfs4ksu/kernel_patches/fs/* workspace/common/fs/
-        cp -r susfs4ksu/kernel_patches/include/linux/* workspace/common/include/linux/
+        cp susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch aosp/KernelSU/
+        cp susfs4ksu/kernel_patches/50_add_susfs_in_kernel-6.1.patch aosp/
+        cp -r susfs4ksu/kernel_patches/fs/* aosp/fs/
+        cp -r susfs4ksu/kernel_patches/include/linux/* aosp/include/linux/
         
         # 4. Apply the code patches
-        cd workspace/common/KernelSU
+        cd aosp/KernelSU
         patch -p1 < 10_enable_susfs_for_ksu.patch
         cd ../
         patch -p1 < 50_add_susfs_in_kernel-6.1.patch
@@ -162,9 +161,8 @@ jobs:
         CONFIG_EXFAT_FS=y
         CONFIG_ISO9660_FS=y
         CONFIG_UDF_FS=y
-
         EOF
-      
+          
     - name: Compile Pixel 8 Pro Kernel
       run: |
          cd workspace
