@@ -125,6 +125,19 @@ jobs:
         CONFIG_WIREGUARD=y
         CONFIG_CAN=y
         CONFIG_CAN_RAW=y
+        
+        # CPU Frequency Governors (Allows manual overriding of CPU scaling)
+        CONFIG_CPU_FREQ_GOV_PERFORMANCE=y
+        CONFIG_CPU_FREQ_GOV_POWERSAVE=y
+        CONFIG_CPU_FREQ_GOV_USERSPACE=y
+        CONFIG_CPU_FREQ_GOV_ONDEMAND=y
+        CONFIG_CPU_FREQ_GOV_CONSERVATIVE=y
+
+        # Advanced Power Supply & Thermal Debugging (Required for FKM/EXKM)
+        CONFIG_POWER_SUPPLY_DEBUG=y
+        CONFIG_DEBUG_FS=y
+        CONFIG_THERMAL_GOV_USER_SPACE=y
+        
         EOF
       
     - name: Compile Pixel 8 Pro Kernel
