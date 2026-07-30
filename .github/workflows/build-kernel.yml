@@ -51,8 +51,8 @@ jobs:
       run: |
         cd workspace/aosp
         
-        # 1. Install KernelSU Next (Main Branch)
-        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/main/kernel/setup.sh" | bash -s main
+        # 1. Install KernelSU Next (Default Next Branch)
+        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
         
         # 2. Fix ABI symbol exports for Android 14+ GKI to ensure Wi-Fi modules work
         rm -f android/abi_gki_protected_exports_aarch64
