@@ -1,0 +1,23 @@
+Highly advanced, automated CI/CD pipeline that will:
+
+Sync over 100GB of untouched Google source code.
+
+Inject Kali Linux penetration testing drivers (Wi-Fi and HID).
+
+Inject Next-Gen root and stealth mechanisms (KernelSU Next + SUSFS).
+
+Expose all the hidden battery, thermal, and CPU hardware registers.
+
+Compile the massive 6.1 kernel using Google's Bazel system.
+
+Package it neatly into an AnyKernel3 zip.
+
+
+Use at your own risk. Built for Pixel 8 Pro running Android 16 on the May update. 
+If you are not overfly familiar with flashing kernels, do not attempt. 
+
+Otherwise..
+
+Flash and enjoy! 
+
+-stoag
