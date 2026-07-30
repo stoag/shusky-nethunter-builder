@@ -4,7 +4,7 @@ Sync over 100GB of untouched Google source code.
 
 Inject Kali Linux penetration testing drivers (Wi-Fi and HID).
 
-Inject Next-Gen root and stealth mechanisms (KernelSU Next + SUSFS).
+### just KenrelSU Next for now, susFS author needs to do some updates ### Inject Next-Gen root and stealth mechanisms (KernelSU Next + SUSFS).
 
 Expose all the hidden battery, thermal, and CPU hardware registers.
 
