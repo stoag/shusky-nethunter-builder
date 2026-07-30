@@ -74,6 +74,33 @@ jobs:
         rm -f android/abi_gki_protected_exports_aarch64
         rm -f android/abi_gki_protected_exports_x86_64
 
+        - name: Apply KernelSU Next & SUSFS Patches
+      run: |
+        cd workspace/aosp
+        
+        # 1. Install KernelSU Next (Dev Branch for SUSFS compatibility)
+        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s dev
+        
+        # 2. Clone the SUSFS patch repository (targeting GKI 6.1)
+        cd ../
+        git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
+        
+        # 3. Copy the SUSFS modifications into the Kernel and KSU-Next directories
+        cp susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch aosp/KernelSU-Next/
+        cp susfs4ksu/kernel_patches/50_add_susfs_in_kernel-6.1.patch aosp/
+        cp -r susfs4ksu/kernel_patches/fs/* aosp/fs/
+        cp -r susfs4ksu/kernel_patches/include/linux/* aosp/include/linux/
+        
+        # 4. Apply the code patches
+        cd aosp/KernelSU-Next
+        patch -p1 < 10_enable_susfs_for_ksu.patch
+        cd ../
+        patch -p1 < 50_add_susfs_in_kernel-6.1.patch
+        
+        # 5. Fix ABI symbol exports for Android 14+ GKI to ensure Wi-Fi modules work
+        rm -f android/abi_gki_protected_exports_aarch64
+        rm -f android/abi_gki_protected_exports_x86_64
+
         # 6. Enable KSU, SUSFS, ConfigFS, and Modular Wi-Fi Drivers
         cat << 'EOF' >> arch/arm64/configs/gki_defconfig
         # KSU & SUSFS
@@ -162,6 +189,8 @@ jobs:
         CONFIG_ISO9660_FS=y
         CONFIG_UDF_FS=y
         EOF
+
+
           
     - name: Compile Pixel 8 Pro Kernel
       run: |
