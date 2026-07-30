@@ -162,7 +162,12 @@ jobs:
         CONFIG_EXFAT_FS=y
         CONFIG_ISO9660_FS=y
         CONFIG_UDF_FS=y
-        
+
+        # Native High-Capacity Drive Support
+        CONFIG_NTFS3_FS=y
+        CONFIG_EXFAT_FS=y
+        CONFIG_ISO9660_FS=y
+        CONFIG_UDF_FS=y
         EOF
       
     - name: Compile Pixel 8 Pro Kernel
