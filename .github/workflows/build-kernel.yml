@@ -42,9 +42,13 @@ jobs:
       run: |
         cd workspace/aosp # Main GKI Linux kernel tree
         
-        # Download and apply Kali mac80211 Wi-Fi injection & HID patches
-        # Note: If git apply fails due to line shifts, use 'patch -p1'
-        curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0001-mac80211-injection.patch | git apply || true
+        # Download Kali injection patch, strip out unexported LED trigger calls, and apply it
+        curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0001-mac80211-injection.patch > injection.patch
+        sed -i '/led_trigger_blink/d' injection.patch
+        git apply injection.patch || true
+        rm injection.patch
+
+        # Download and apply HID gadget patch
         curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0002-hid-gadget.patch | git apply || true
 
     - name: Apply KernelSU Next Patches
@@ -58,12 +62,12 @@ jobs:
         rm -f android/abi_gki_protected_exports_aarch64
         rm -f android/abi_gki_protected_exports_x86_64
 
-        # 3. Enable KSU, ConfigFS, LED Triggers, Disable KMI Trimming, and Modular Wi-Fi Drivers
+        # 3. Enable KSU, ConfigFS, Disable KMI Trimming, and Modular Wi-Fi Drivers
         cat << 'EOF' >> arch/arm64/configs/gki_defconfig
         # KSU
         CONFIG_KSU=y
 
-        # Disable Google GKI Symbol Trimming (Allows out-of-tree modules to link properly)
+        # Disable Google GKI Symbol Trimming
         CONFIG_TRIM_NONLISTED_KMI=n
 
         # USB Arsenal & HID
@@ -74,13 +78,6 @@ jobs:
         CONFIG_USB_CONFIGFS_F_MASS_STORAGE=y
         CONFIG_USB_CONFIGFS_F_ECM=y
         CONFIG_USB_CONFIGFS_F_ACM=y
-
-        # LED Subsystem & Triggers (Required for mac80211 injection feedback)
-        CONFIG_NEW_LEDS=y
-        CONFIG_LEDS_CLASS=y
-        CONFIG_LEDS_TRIGGERS=y
-        CONFIG_LEDS_TRIGGER_TIMER=y
-        CONFIG_LEDS_TRIGGER_ONESHOT=y
 
         # Mac80211 Subsystem (Required for Injection)
         CONFIG_MAC80211=y
@@ -154,21 +151,21 @@ jobs:
 
     - name: Package into AnyKernel3
       run: |
-        git clone https://github.com/osm0sis/AnyKernel3 --depth=1 AnyKernel3
+         git clone https://github.com/osm0sis/AnyKernel3 --depth=1 AnyKernel3
         
-        # In the 6.1 Kleaf tree, the output path is out/shusky/dist/
-        cp workspace/out/shusky/dist/Image.lz4 AnyKernel3/
-        mkdir -p AnyKernel3/modules/vendor/lib/modules
-        cp workspace/out/shusky/dist/*.ko AnyKernel3/modules/vendor/lib/modules/ || true
+         # In the 6.1 Kleaf tree, the output path is out/shusky/dist/
+         cp workspace/out/shusky/dist/Image.lz4 AnyKernel3/
+         mkdir -p AnyKernel3/modules/vendor/lib/modules
+         cp workspace/out/shusky/dist/*.ko AnyKernel3/modules/vendor/lib/modules/ || true
         
-        # Configure AnyKernel for shusky
-        sed -i 's/device.name1=/device.name1=husky/g' AnyKernel3/anykernel.sh
-        sed -i 's/device.name2=/device.name2=shiba/g' AnyKernel3/anykernel.sh
-        sed -i 's/BLOCK=auto/BLOCK=boot/g' AnyKernel3/anykernel.sh
-        sed -i 's/IS_SLOT_DEVICE=0/IS_SLOT_DEVICE=1/g' AnyKernel3/anykernel.sh
+         # Configure AnyKernel for shusky
+         sed -i 's/device.name1=/device.name1=husky/g' AnyKernel3/anykernel.sh
+         sed -i 's/device.name2=/device.name2=shiba/g' AnyKernel3/anykernel.sh
+         sed -i 's/BLOCK=auto/BLOCK=boot/g' AnyKernel3/anykernel.sh
+         sed -i 's/IS_SLOT_DEVICE=0/IS_SLOT_DEVICE=1/g' AnyKernel3/anykernel.sh
 
-        cd AnyKernel3
-        zip -r9 ../Custom-Shusky-NetHunter-Kernel.zip * -x .git README.md
+         cd AnyKernel3
+         zip -r9 ../Custom-Shusky-NetHunter-Kernel.zip * -x .git README.md
 
     - name: Upload Flashable ZIP Artifact
       uses: actions/upload-artifact@v4
