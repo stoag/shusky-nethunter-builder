@@ -47,7 +47,7 @@ jobs:
         curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0001-mac80211-injection.patch | git apply || true
         curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0002-hid-gadget.patch | git apply || true
 
-    - - name: Apply KernelSU Next & SUSFS Patches
+    - name: Apply KernelSU Next & SUSFS Patches
       run: |
         # 1. Enter the main kernel tree and stay there
         cd workspace/aosp
