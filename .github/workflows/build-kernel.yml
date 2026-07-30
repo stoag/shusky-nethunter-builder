@@ -58,10 +58,13 @@ jobs:
         rm -f android/abi_gki_protected_exports_aarch64
         rm -f android/abi_gki_protected_exports_x86_64
 
-        # 3. Enable KSU, ConfigFS, LED Triggers, and Modular Wi-Fi Drivers
+        # 3. Enable KSU, ConfigFS, LED Triggers, Disable KMI Trimming, and Modular Wi-Fi Drivers
         cat << 'EOF' >> arch/arm64/configs/gki_defconfig
         # KSU
         CONFIG_KSU=y
+
+        # Disable Google GKI Symbol Trimming (Allows out-of-tree modules to link properly)
+        CONFIG_TRIM_NONLISTED_KMI=n
 
         # USB Arsenal & HID
         CONFIG_CONFIGFS_FS=y
