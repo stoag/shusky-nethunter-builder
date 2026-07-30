@@ -21,3 +21,21 @@ Otherwise..
 Flash and enjoy! 
 
 -stoag
+
+
+
+To utilize external wifi adapters in your nethunter terminal you will need these commands. This prevents conflicts with your internal adapters.
+
+Atheros Based Alfa Adapters:
+insmod /vendor/lib/modules/ath9k_htc.ko
+
+Ralink/MediaTek: 
+insmod /vendor/lib/modules/rt2800usb.ko
+
+Realtek: 
+insmod /vendor/lib/modules/rtl8187.ko
+
+
+
+
+Realtek: insmod /vendor/lib/modules/rtl8187.ko
