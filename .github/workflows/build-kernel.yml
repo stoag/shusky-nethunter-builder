@@ -58,7 +58,7 @@ jobs:
         rm -f android/abi_gki_protected_exports_aarch64
         rm -f android/abi_gki_protected_exports_x86_64
 
-        # 3. Enable KSU, ConfigFS, and Modular Wi-Fi Drivers
+        # 3. Enable KSU, ConfigFS, LED Triggers, and Modular Wi-Fi Drivers
         cat << 'EOF' >> arch/arm64/configs/gki_defconfig
         # KSU
         CONFIG_KSU=y
@@ -72,6 +72,13 @@ jobs:
         CONFIG_USB_CONFIGFS_F_ECM=y
         CONFIG_USB_CONFIGFS_F_ACM=y
 
+        # LED Subsystem & Triggers (Required for mac80211 injection feedback)
+        CONFIG_NEW_LEDS=y
+        CONFIG_LEDS_CLASS=y
+        CONFIG_LEDS_TRIGGERS=y
+        CONFIG_LEDS_TRIGGER_TIMER=y
+        CONFIG_LEDS_TRIGGER_ONESHOT=y
+
         # Mac80211 Subsystem (Required for Injection)
         CONFIG_MAC80211=y
         CONFIG_MAC80211_RC_MINSTREL=y
@@ -81,7 +88,7 @@ jobs:
         CONFIG_MAC80211_MESH=y
         CONFIG_CFG80211=y
 
-        # External Wi-Fi Adapters (Atheros & Realtek Enabled, Ralink Commented)
+        # External Wi-Fi Adapters (Atheros & Realtek Enabled)
         CONFIG_WLAN_VENDOR_ATH=y
         CONFIG_ATH9K_HTC=m
         #CONFIG_WLAN_VENDOR_RALINK=y
