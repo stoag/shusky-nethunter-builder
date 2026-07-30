@@ -95,6 +95,8 @@ jobs:
         CONFIG_RTL8187=m
         
         # External BT & Networking (CAN Bus Removed)
+        #CONFIG_CAN=y
+        #CONFIG_CAN_RAW=y
         CONFIG_BT_HCIBTUSB=m
         CONFIG_WIREGUARD=y
         
