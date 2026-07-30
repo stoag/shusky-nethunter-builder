@@ -51,8 +51,8 @@ jobs:
       run: |
         cd workspace/aosp
         
-        # 1. Install KernelSU Next (Standard Next Branch)
-        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s next
+        # 1. Install KernelSU Next (Main Branch)
+        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/main/kernel/setup.sh" | bash -s main
         
         # 2. Fix ABI symbol exports for Android 14+ GKI to ensure Wi-Fi modules work
         rm -f android/abi_gki_protected_exports_aarch64
@@ -94,11 +94,9 @@ jobs:
         CONFIG_WLAN_VENDOR_REALTEK=y
         CONFIG_RTL8187=m
         
-        # External BT & Networking
+        # External BT & Networking (CAN Bus Removed)
         CONFIG_BT_HCIBTUSB=m
         CONFIG_WIREGUARD=y
-        CONFIG_CAN=y
-        CONFIG_CAN_RAW=y
         
         # CPU Frequency Governors (Allows manual overriding of CPU scaling)
         CONFIG_CPU_FREQ_GOV_PERFORMANCE=y
