@@ -58,9 +58,9 @@ jobs:
         # 3. Clone the SUSFS patch repository directly into the kernel tree temporarily
         git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
         
-        # 4. Copy the SUSFS modifications to their exact local directories using wildcards
+        # 4. Copy the SUSFS modifications to their exact local directories
         cp susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch KernelSU-Next/
-        cp susfs4ksu/kernel_patches/50_add_susfs_*.patch ./
+        cp susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch ./
         cp -r susfs4ksu/kernel_patches/fs/* fs/
         cp -r susfs4ksu/kernel_patches/include/linux/* include/linux/
         
@@ -68,7 +68,7 @@ jobs:
         cd KernelSU-Next
         patch -p1 < 10_enable_susfs_for_ksu.patch
         cd ../
-        patch -p1 < 50_add_susfs_*.patch
+        patch -p1 < 50_add_susfs_in_gki-android14-6.1.patch
         
         # 6. Delete the SUSFS clone so it doesn't mess up the Bazel compiler
         rm -rf susfs4ksu
