@@ -86,6 +86,11 @@ jobs:
         CONFIG_MAC80211_MESH=y
         CONFIG_CFG80211=y
 
+        # FIX: Explicitly disable Wi-Fi LED triggers so the compiler stops looking for them!
+        # CONFIG_MAC80211_LEDS is not set
+        # CONFIG_ATH9K_HTC_LEDS is not set
+        # CONFIG_RTL8187_LEDS is not set
+
         # External Wi-Fi Adapters (Atheros & Realtek Enabled)
         CONFIG_WLAN_VENDOR_ATH=y
         CONFIG_ATH9K_HTC=m
@@ -124,6 +129,17 @@ jobs:
         CONFIG_ISO9660_FS=y
         CONFIG_UDF_FS=y
         EOF
+
+    - name: Update Bazel Build Inventory
+      run: |
+        # Download buildozer to safely edit Bazel BUILD files
+        curl -L https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64 -o buildozer
+        chmod +x buildozer
+        sudo mv buildozer /usr/local/bin/
+        
+        cd workspace
+        # Add our newly compiled Kali Wi-Fi and Bluetooth modules to Bazel's expected output list
+        buildozer 'add module_outs drivers/bluetooth/btusb.ko drivers/net/wireless/ath/ath9k/ath9k_common.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/bluetooth/btintel.ko drivers/bluetooth/btrtl.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/net/wireless/ath/ath.ko' //private/devices/google/shusky:kernel
 
     - name: Compile Pixel 8 Pro Kernel
       run: |
