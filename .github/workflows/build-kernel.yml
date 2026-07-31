@@ -130,80 +130,7 @@ jobs:
         CONFIG_ISO9660_FS=y
         CONFIG_UDF_FS=y
         EOF
-        
-    - name: Authorize Kali Symbols Natively
-      run: |
-        cd workspace
-        
-        cat << 'EOF' > missing_symbols.txt
-        __dev_kfree_skb_irq
-        __hci_cmd_sync
-        __hci_cmd_sync_ev
-        __printk_ratelimit
-        __regmap_init
-        bit_wait_timeout
-        bt_err
-        bt_info
-        bt_to_errno
-        bt_warn
-        btbcm_set_bdaddr
-        btbcm_setup_apple
-        btbcm_setup_patchram
-        device_release_driver
-        gpiod_get_optional
-        gpiod_put
-        hci_alloc_dev_priv
-        hci_cmd_sync
-        hci_cmd_sync_cancel
-        hci_free_dev
-        hci_recv_diag
-        hci_recv_frame
-        hci_register_dev
-        hci_unregister_dev
-        out_of_line_wait_on_bit_timeout
-        rfkill_pause_polling
-        rhashtable_init
-        skb_pull_data
-        skb_unlink
-        usb_alloc_urb
-        usb_anchor_urb
-        usb_autopm_get_interface
-        usb_autopm_put_interface
-        usb_bulk_msg
-        usb_control_msg
-        usb_deregister
-        usb_driver_claim_interface
-        usb_driver_release_interface
-        usb_find_common_endpoints
-        usb_free_urb
-        usb_get_dev
-        usb_get_from_anchor
-        usb_get_urb
-        usb_ifnum_to_if
-        usb_interrupt_msg
-        usb_kill_anchored_urbs
-        usb_kill_urb
-        usb_match_id
-        usb_put_dev
-        usb_queue_reset_device
-        usb_register_driver
-        usb_reset_device
-        usb_scuttle_anchored_urbs
-        usb_set_interface
-        usb_submit_urb
-        usb_unanchor_urb
-        wake_up_bit
-        EOF
-        
-        echo "Injecting missing Kali symbols into official text whitelists..."
-        # Safely find symbol lists but EXCLUDE .bzl scripts, .xml, and .stg files!
-        find . -type f \( -name "*abi_symbollist*" -o -name "*protected_exports*" \) ! -name "*.bzl" ! -name "*.stg" ! -name "*.xml" -print | while read -r list_file; do
-            echo "Updating $list_file"
-            chmod u+w "$list_file" || true
-            echo "" >> "$list_file"
-            cat missing_symbols.txt >> "$list_file"
-        done
-        
+
     - name: Whitelist Custom Modules in Bazel
       run: |
         cd workspace
@@ -217,8 +144,8 @@ jobs:
     - name: Compile Pixel 8 Pro Kernel
       run: |
          cd workspace
-         # Standard compilation. Adding hacky flags back in, stopping trim.
-         BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--trim_nonlisted_kmi=false" ./build_shusky.sh
+         # Native compilation. Disabling trimming and disabling strict ABI symbol checks.
+         BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--trim_nonlisted_kmi=false --kmi_symbol_list_strict_mode=false" ./build_shusky.sh
 
     - name: Package into AnyKernel3 (64-bit Fixed)
       run: |
