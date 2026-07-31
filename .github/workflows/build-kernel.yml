@@ -46,6 +46,12 @@ jobs:
         curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0001-mac80211-injection.patch | git apply || true
         curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0002-hid-gadget.patch | git apply || true
 
+        # THE KCONFIG KILL SWITCH: Physically break the Wi-Fi LED configs in the source code.
+        # This completely hides the LED subsystems from Bazel, bypassing the symbol crash.
+        sed -i 's/config MAC80211_LEDS/config BROKEN_MAC80211_LEDS/g' net/mac80211/Kconfig
+        sed -i 's/config ATH9K_HTC_LEDS/config BROKEN_ATH9K_HTC_LEDS/g' drivers/net/wireless/ath/ath9k/Kconfig || true
+        sed -i 's/config RTL8187_LEDS/config BROKEN_RTL8187_LEDS/g' drivers/net/wireless/realtek/rtl818x/rtl8187/Kconfig || true
+
     - name: Apply KernelSU Next Patches
       run: |
         cd workspace/aosp
@@ -79,11 +85,6 @@ jobs:
         CONFIG_MAC80211_RC_DEFAULT_MINSTREL=y
         CONFIG_MAC80211_MESH=y
         CONFIG_CFG80211=y
-
-        # FIX: Explicitly disable Wi-Fi LED triggers so the compiler stops looking for them!
-        # CONFIG_MAC80211_LEDS is not set
-        # CONFIG_ATH9K_HTC_LEDS is not set
-        # CONFIG_RTL8187_LEDS is not set
 
         # External Wi-Fi Adapters (Atheros & Realtek Enabled)
         CONFIG_WLAN_VENDOR_ATH=y
