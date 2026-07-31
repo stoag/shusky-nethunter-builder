@@ -91,19 +91,10 @@ jobs:
         # External Wi-Fi Adapters (Atheros & Realtek Enabled)
         CONFIG_WLAN_VENDOR_ATH=y
         CONFIG_ATH9K_HTC=m
-        #CONFIG_WLAN_VENDOR_RALINK=y
-        #CONFIG_RT2X00=m
-        #CONFIG_RT2800USB=m
-        #CONFIG_RT2800USB_RT3573=m
-        #CONFIG_RT2800USB_RT53XX=m
-        #CONFIG_RT2800USB_RT55XX=m
-        #CONFIG_RT2800USB_UNKNOWN=m
         CONFIG_WLAN_VENDOR_REALTEK=y
         CONFIG_RTL8187=m
         
         # External BT & Networking (CAN Bus Commented)
-        #CONFIG_CAN=y
-        #CONFIG_CAN_RAW=y
         CONFIG_BT_HCIBTUSB=m
         CONFIG_WIREGUARD=y
         
@@ -118,13 +109,6 @@ jobs:
         CONFIG_POWER_SUPPLY_DEBUG=y
         CONFIG_DEBUG_FS=y
         CONFIG_THERMAL_GOV_USER_SPACE=y
-
-        # Core USB Serial Support (Commented out to prevent GKI modpost crashes)
-        #CONFIG_USB_SERIAL=y
-        #CONFIG_USB_SERIAL_FTDI_SIO=m
-        #CONFIG_USB_SERIAL_CP210X=m
-        #CONFIG_USB_SERIAL_PL2303=m
-        #CONFIG_USB_SERIAL_CH341=m
 
         # BBR TCP Congestion Control (Faster mobile data throughput)
         CONFIG_TCP_CONG_BBR=y
@@ -149,16 +133,30 @@ jobs:
          # Android 16 (6.1) uses Kleaf/Bazel via a device-specific wrapper script
          BUILD_AOSP_KERNEL=1 ./build_shusky.sh
 
-    - name: Prepare Fastboot Images
+    - name: Package into AnyKernel3 (64-bit Fixed)
       run: |
-         mkdir fastboot_images
-         # Grab the pre-packaged .img files directly from the Bazel output
-         cp workspace/out/shusky/dist/*.img fastboot_images/ || true
-         echo "The following images are ready for Fastboot:"
-         ls -lh fastboot_images/
+         git clone https://github.com/osm0sis/AnyKernel3 --depth=1 AnyKernel3
+        
+         # FIX: The Pixel 8 Pro is strictly 64-bit. We must replace the default 32-bit busybox with a 64-bit binary.
+         wget -qO AnyKernel3/tools/busybox https://busybox.net/downloads/binaries/1.35.0-aarch64-linux-musl/busybox
+         chmod +x AnyKernel3/tools/busybox
+        
+         # In the 6.1 Kleaf tree, the output path is out/shusky/dist/
+         cp workspace/out/shusky/dist/Image.lz4 AnyKernel3/
+         mkdir -p AnyKernel3/modules/vendor/lib/modules
+         cp workspace/out/shusky/dist/*.ko AnyKernel3/modules/vendor/lib/modules/ || true
+        
+         # Configure AnyKernel for shusky
+         sed -i 's/device.name1=/device.name1=husky/g' AnyKernel3/anykernel.sh
+         sed -i 's/device.name2=/device.name2=shiba/g' AnyKernel3/anykernel.sh
+         sed -i 's/BLOCK=auto/BLOCK=boot/g' AnyKernel3/anykernel.sh
+         sed -i 's/IS_SLOT_DEVICE=0/IS_SLOT_DEVICE=1/g' AnyKernel3/anykernel.sh
 
-    - name: Upload Fastboot Images Artifact
+         cd AnyKernel3
+         zip -r9 ../Custom-Shusky-NetHunter-Kernel.zip * -x .git README.md
+
+    - name: Upload Flashable ZIP Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: NetHunter-Shusky-Fastboot-Images
-        path: fastboot_images/
+        name: NetHunter-Shusky-Kernel
+        path: Custom-Shusky-NetHunter-Kernel.zip
