@@ -200,8 +200,8 @@ jobs:
         wake_up_bit
         EOF
         
-        # Correctly executes the append command for each file found
-        find . -type f \( -name "*symbol_list*" -o -name "abi_gki_protected_exports_*" \) -exec sh -c 'echo "" >> "$1"; cat missing_symbols.txt >> "$1"' _ {} \;
+        # Correctly executes the append command ONLY on plain text symbol lists (ignoring .bzl scripts)
+        find . -type f \( -name "*symbol_list*" -o -name "abi_gki_protected_exports_*" \) ! -name "*.bzl" -exec sh -c 'echo "" >> "$1"; cat missing_symbols.txt >> "$1"' _ {} \;
 
     - name: Whitelist Custom Modules in Bazel
       run: |
