@@ -131,12 +131,12 @@ jobs:
         CONFIG_UDF_FS=y
         EOF
 
-    - name: Obliterate KMI Symbol Checker
+    - name: Create Native Kleaf Symbol Supplement
       run: |
         cd workspace
         
-        # DEFENSE LAYER 1: Create the symbol list, FORCE write permissions, and inject
-        cat << 'EOF' > missing_symbols.txt
+        # Create an official out-of-tree symbol addition file natively supported by Kleaf
+        cat << 'EOF' > kali_missing_symbols.txt
         __dev_kfree_skb_irq
         __hci_cmd_sync
         __hci_cmd_sync_ev
@@ -196,19 +196,8 @@ jobs:
         wake_up_bit
         EOF
         
-        # Strip Read-Only attributes
-        find . -type f \( -name "*symbol_list*" -o -name "abi_gki_protected_exports_*" \) ! -name "*.bzl" ! -name "*.py" ! -name "*.sh" -exec chmod 777 {} \;
-        # Inject the Kali symbols directly
-        find . -type f \( -name "*symbol_list*" -o -name "abi_gki_protected_exports_*" \) ! -name "*.bzl" ! -name "*.py" ! -name "*.sh" -exec sh -c 'echo "" >> "$1"; cat missing_symbols.txt >> "$1"' _ {} \;
-
-        # DEFENSE LAYER 2: Neuter the Bazel Bash failure command
-        echo "Hunting down the specific Bazel Validation scripts..."
-        grep -rl "These symbols are missing from the symbol list" build/kernel/ | while read -r file; do
-            echo "Neutering KMI Checker in: $file"
-            # Rewrite 'exit 1' to 'exit 0' so Bazel thinks the validation passed
-            sed -i 's/exit 1/exit 0/g' "$file"
-            sed -i 's/sys.exit(1)/sys.exit(0)/g' "$file"
-        done
+        # Move the list into the active build tree
+        cp kali_missing_symbols.txt aosp/android/
 
     - name: Whitelist Custom Modules in Bazel
       run: |
@@ -223,7 +212,9 @@ jobs:
     - name: Compile Pixel 8 Pro Kernel
       run: |
          cd workspace
-         BUILD_AOSP_KERNEL=1 ./build_shusky.sh
+         
+         # Feed the supplemental Kali symbol list directly into the Bazel compiler parameter
+         BUILD_AOSP_KERNEL=1 KMI_SYMBOL_LIST_ADD_ONLY=$(pwd)/aosp/android/kali_missing_symbols.txt ./build_shusky.sh
 
     - name: Package into AnyKernel3 (64-bit Fixed)
       run: |
