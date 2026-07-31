@@ -68,6 +68,9 @@ jobs:
         # KSU
         CONFIG_KSU=y
 
+        # Disable Google GKI Symbol Trimming
+        CONFIG_TRIM_NONLISTED_KMI=n
+
         # USB Arsenal & HID
         CONFIG_CONFIGFS_FS=y
         CONFIG_USB_CONFIGFS=y
@@ -128,24 +131,11 @@ jobs:
         CONFIG_UDF_FS=y
         EOF
 
-    - name: Nuke Google KMI Checking Architecture
+    - name: Authorize Kali Symbols Natively
       run: |
         cd workspace
         
-        echo "==> 1. Disabling KMI Trimming globally via Bazelrc"
-        # This completely disables Google's symbol wiping feature at the compiler level
-        cat << 'EOF' >> .bazelrc
-        build --//build/kernel/kleaf:trim_nonlisted_kmi=false
-        build --//build/kernel/kleaf:kmi_symbol_list_strict_mode=false
-        EOF
-        
-        echo "==> 2. Disabling KMI Trimming in BUILD files"
-        # Surgically remove strict mode rules from Google's device targets
-        find . -type f -name "BUILD.bazel" -exec sed -i 's/trim_nonlisted_kmi = True/trim_nonlisted_kmi = False/g' {} +
-        find . -type f -name "BUILD.bazel" -exec sed -i 's/kmi_symbol_list_strict_mode = True/kmi_symbol_list_strict_mode = False/g' {} +
-        
-        echo "==> 3. Creating Kali missing symbols list"
-        # Failsafe injection block
+        # Create the precise list of missing USB/BT symbols required by the Kali modules
         cat << 'EOF' > missing_symbols.txt
         __dev_kfree_skb_irq
         __hci_cmd_sync
@@ -206,24 +196,19 @@ jobs:
         wake_up_bit
         EOF
         
-        echo "==> 4. Injecting missing symbols into all symbol_list files"
-        find . -type f -name "*symbol_list*" | grep -vE '\.(bzl|py|sh|c|h)$' | while read -r f; do
-            chmod u+w "$f" 2>/dev/null || true
-            echo "" >> "$f"
-            cat missing_symbols.txt >> "$f" || true
-        done
-        
-        echo "==> 5. Neutering Kleaf Validation Scripts"
-        grep -rl "These symbols are missing from the symbol list" . | grep -vE '\.(ko|o|cmd)$' | while read -r f; do
-            chmod u+w "$f" 2>/dev/null || true
-            sed -i 's/exit 1/exit 0/g' "$f"
-            sed -i 's/sys.exit(1)/sys.exit(0)/g' "$f"
+        echo "Injecting missing Kali symbols into all official Android ABI whitelists..."
+        # Safely find every symbol list and protected export file in the Android tree, grant write permissions, and append the symbols.
+        find . -type f \( -name "*abi_symbollist*" -o -name "*protected_exports*" \) -print | while read -r list_file; do
+            echo "Updating $list_file"
+            chmod u+w "$list_file" || true
+            echo "" >> "$list_file"
+            cat missing_symbols.txt >> "$list_file"
         done
 
     - name: Whitelist Custom Modules in Bazel
       run: |
         cd workspace
-        # Download Google's buildozer tool
+        # Download Google's buildozer tool to safely inject into Bazel manifests
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/download/v7.1.2/buildozer-linux-amd64
         chmod +x buildozer
         
@@ -233,8 +218,8 @@ jobs:
     - name: Compile Pixel 8 Pro Kernel
       run: |
          cd workspace
-         # We forcefully inject the disabled strict mode into the wrapper's execution arguments just in case Bazel ignores .bazelrc
-         BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--//build/kernel/kleaf:trim_nonlisted_kmi=false --//build/kernel/kleaf:kmi_symbol_list_strict_mode=false" ./build_shusky.sh -- --//build/kernel/kleaf:trim_nonlisted_kmi=false --//build/kernel/kleaf:kmi_symbol_list_strict_mode=false
+         # Standard compilation. No hacky flags, no unrecognized parameters.
+         BUILD_AOSP_KERNEL=1 ./build_shusky.sh
 
     - name: Package into AnyKernel3 (64-bit Fixed)
       run: |
