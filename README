@@ -15,7 +15,9 @@ Package it neatly into an AnyKernel3 zip.
 
 Use at your own risk. Built for Pixel 8 Pro running Android 16 on the May update. 
 If you are not overfly familiar with flashing kernels, do not attempt. 
-I suggest flashing in custom recovery like OrangeFox after backup.
+
+(I flashed with this version of kernel flasher... 
+https://github.com/capntrips/KernelFlasher/releases/download/v1.0.0-alpha21%2Ballow-errors/KernelFlasher-v1.0.0-alpha20+allow-errors.2.apk)
 
 Otherwise..
 
