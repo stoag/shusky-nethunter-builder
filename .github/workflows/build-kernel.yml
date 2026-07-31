@@ -47,9 +47,10 @@ jobs:
         patch -p1 < injection.patch || true
         rm injection.patch
 
-        # 2. STRIP LED TRIGGERS: Deletes the unexported LED functions from the actual C code
-        # This safely deletes from the 'led_trigger_blink' call down to the closing semicolon
-        find net/mac80211 -name "*.c" -exec sed -i '/led_trigger_blink/,/;/d' {} +
+        # 2. THE FOOLPROOF FIX: Mark MAC80211_LEDS as BROKEN in Kconfig
+        # This absolutely forces the compiler to ignore LED triggers and use native empty stubs,
+        # preventing modpost missing symbol crashes without destroying the C syntax.
+        sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig
 
         # 3. Download and apply HID gadget patch
         curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0002-hid-gadget.patch > hid.patch
@@ -92,9 +93,6 @@ jobs:
         CONFIG_MAC80211_RC_DEFAULT_MINSTREL=y
         CONFIG_MAC80211_MESH=y
         CONFIG_CFG80211=y
-        
-        # Prevent Native LED Calls
-        # CONFIG_MAC80211_LEDS is not set
 
         # External Wi-Fi Adapters (Atheros & Realtek Enabled)
         CONFIG_WLAN_VENDOR_ATH=y
