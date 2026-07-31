@@ -42,9 +42,19 @@ jobs:
       run: |
         cd workspace/aosp # Main GKI Linux kernel tree
         
-        # Download and apply Kali mac80211 Wi-Fi injection & HID patches
-        curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0001-mac80211-injection.patch | git apply || true
-        curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0002-hid-gadget.patch | git apply || true
+        # 1. Download and apply Kali mac80211 Wi-Fi injection patch
+        curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0001-mac80211-injection.patch > injection.patch
+        patch -p1 < injection.patch || true
+        rm injection.patch
+
+        # 2. STRIP LED TRIGGERS: Deletes the unexported LED functions from the actual C code
+        # This safely deletes from the 'led_trigger_blink' call down to the closing semicolon
+        find net/mac80211 -name "*.c" -exec sed -i '/led_trigger_blink/,/;/d' {} +
+
+        # 3. Download and apply HID gadget patch
+        curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0002-hid-gadget.patch > hid.patch
+        patch -p1 < hid.patch || true
+        rm hid.patch
 
     - name: Apply KernelSU Next Patches
       run: |
@@ -82,6 +92,8 @@ jobs:
         CONFIG_MAC80211_RC_DEFAULT_MINSTREL=y
         CONFIG_MAC80211_MESH=y
         CONFIG_CFG80211=y
+        
+        # Prevent Native LED Calls
         # CONFIG_MAC80211_LEDS is not set
 
         # External Wi-Fi Adapters (Atheros & Realtek Enabled)
@@ -90,7 +102,7 @@ jobs:
         CONFIG_WLAN_VENDOR_REALTEK=y
         CONFIG_RTL8187=m
         
-        # External BT & Networking (CAN Bus Commented)
+        # External BT & Networking
         CONFIG_BT_HCIBTUSB=m
         CONFIG_WIREGUARD=y
         
