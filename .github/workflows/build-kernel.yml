@@ -43,7 +43,6 @@ jobs:
         cd workspace/aosp # Main GKI Linux kernel tree
         
         # Download and apply Kali mac80211 Wi-Fi injection & HID patches
-        # Note: If git apply fails due to line shifts, use 'patch -p1'
         curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0001-mac80211-injection.patch | git apply || true
         curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0002-hid-gadget.patch | git apply || true
 
@@ -89,19 +88,10 @@ jobs:
         # External Wi-Fi Adapters (Atheros & Realtek Enabled)
         CONFIG_WLAN_VENDOR_ATH=y
         CONFIG_ATH9K_HTC=m
-        #CONFIG_WLAN_VENDOR_RALINK=y
-        #CONFIG_RT2X00=m
-        #CONFIG_RT2800USB=m
-        #CONFIG_RT2800USB_RT3573=m
-        #CONFIG_RT2800USB_RT53XX=m
-        #CONFIG_RT2800USB_RT55XX=m
-        #CONFIG_RT2800USB_UNKNOWN=m
         CONFIG_WLAN_VENDOR_REALTEK=y
         CONFIG_RTL8187=m
         
-        # External BT & Networking (CAN Bus Commented)
-        #CONFIG_CAN=y
-        #CONFIG_CAN_RAW=y
+        # External BT & Networking
         CONFIG_BT_HCIBTUSB=m
         CONFIG_WIREGUARD=y
         
@@ -116,13 +106,6 @@ jobs:
         CONFIG_POWER_SUPPLY_DEBUG=y
         CONFIG_DEBUG_FS=y
         CONFIG_THERMAL_GOV_USER_SPACE=y
-
-        # Core USB Serial Support (Commented out to prevent GKI modpost crashes)
-        #CONFIG_USB_SERIAL=y
-        #CONFIG_USB_SERIAL_FTDI_SIO=m
-        #CONFIG_USB_SERIAL_CP210X=m
-        #CONFIG_USB_SERIAL_PL2303=m
-        #CONFIG_USB_SERIAL_CH341=m
 
         # BBR TCP Congestion Control (Faster mobile data throughput)
         CONFIG_TCP_CONG_BBR=y
