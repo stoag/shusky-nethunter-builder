@@ -42,15 +42,14 @@ jobs:
       run: |
         cd workspace/aosp # Main GKI Linux kernel tree
         
-        # Download and apply Kali mac80211 Wi-Fi injection & HID patches
-        curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0001-mac80211-injection.patch | git apply || true
-        curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0002-hid-gadget.patch | git apply || true
+        # Download Kali injection patch, strip out unexported LED trigger calls, and apply it
+        curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0001-mac80211-injection.patch > injection.patch
+        sed -i '/led_trigger_blink/d' injection.patch
+        git apply injection.patch || true
+        rm injection.patch
 
-        # THE KCONFIG KILL SWITCH: Physically break the Wi-Fi LED configs in the source code.
-        # This completely hides the LED subsystems from Bazel, bypassing the symbol crash.
-        sed -i 's/config MAC80211_LEDS/config BROKEN_MAC80211_LEDS/g' net/mac80211/Kconfig
-        sed -i 's/config ATH9K_HTC_LEDS/config BROKEN_ATH9K_HTC_LEDS/g' drivers/net/wireless/ath/ath9k/Kconfig || true
-        sed -i 's/config RTL8187_LEDS/config BROKEN_RTL8187_LEDS/g' drivers/net/wireless/realtek/rtl818x/rtl8187/Kconfig || true
+        # Download and apply HID gadget patch
+        curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0002-hid-gadget.patch | git apply || true
 
     - name: Apply KernelSU Next Patches
       run: |
@@ -63,10 +62,13 @@ jobs:
         rm -f android/abi_gki_protected_exports_aarch64
         rm -f android/abi_gki_protected_exports_x86_64
 
-        # 3. Enable KSU, ConfigFS, and Modular Wi-Fi Drivers
+        # 3. Enable KSU, ConfigFS, Disable KMI Trimming, and Modular Wi-Fi Drivers
         cat << 'EOF' >> arch/arm64/configs/gki_defconfig
         # KSU
         CONFIG_KSU=y
+
+        # Disable Google GKI Symbol Trimming
+        CONFIG_TRIM_NONLISTED_KMI=n
 
         # USB Arsenal & HID
         CONFIG_CONFIGFS_FS=y
@@ -86,18 +88,22 @@ jobs:
         CONFIG_MAC80211_MESH=y
         CONFIG_CFG80211=y
 
-        # FIX: Explicitly disable Wi-Fi LED triggers so the compiler stops looking for them!
-        # CONFIG_MAC80211_LEDS is not set
-        # CONFIG_ATH9K_HTC_LEDS is not set
-        # CONFIG_RTL8187_LEDS is not set
-
         # External Wi-Fi Adapters (Atheros & Realtek Enabled)
         CONFIG_WLAN_VENDOR_ATH=y
         CONFIG_ATH9K_HTC=m
+        #CONFIG_WLAN_VENDOR_RALINK=y
+        #CONFIG_RT2X00=m
+        #CONFIG_RT2800USB=m
+        #CONFIG_RT2800USB_RT3573=m
+        #CONFIG_RT2800USB_RT53XX=m
+        #CONFIG_RT2800USB_RT55XX=m
+        #CONFIG_RT2800USB_UNKNOWN=m
         CONFIG_WLAN_VENDOR_REALTEK=y
         CONFIG_RTL8187=m
         
-        # External BT & Networking
+        # External BT & Networking (CAN Bus Commented)
+        #CONFIG_CAN=y
+        #CONFIG_CAN_RAW=y
         CONFIG_BT_HCIBTUSB=m
         CONFIG_WIREGUARD=y
         
@@ -112,6 +118,13 @@ jobs:
         CONFIG_POWER_SUPPLY_DEBUG=y
         CONFIG_DEBUG_FS=y
         CONFIG_THERMAL_GOV_USER_SPACE=y
+
+        # Core USB Serial Support (Commented out to prevent GKI modpost crashes)
+        #CONFIG_USB_SERIAL=y
+        #CONFIG_USB_SERIAL_FTDI_SIO=m
+        #CONFIG_USB_SERIAL_CP210X=m
+        #CONFIG_USB_SERIAL_PL2303=m
+        #CONFIG_USB_SERIAL_CH341=m
 
         # BBR TCP Congestion Control (Faster mobile data throughput)
         CONFIG_TCP_CONG_BBR=y
@@ -130,113 +143,22 @@ jobs:
         CONFIG_UDF_FS=y
         EOF
 
-    - name: Update Bazel Build Inventory
-      run: |
-        # Download buildozer to safely edit Bazel BUILD files
-        curl -L https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64 -o buildozer
-        chmod +x buildozer
-        sudo mv buildozer /usr/local/bin/
-        
-        cd workspace
-        # Add our newly compiled Kali Wi-Fi and Bluetooth modules to Bazel's expected output list
-        buildozer 'add module_outs drivers/bluetooth/btusb.ko drivers/net/wireless/ath/ath9k/ath9k_common.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/bluetooth/btintel.ko drivers/bluetooth/btrtl.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/net/wireless/ath/ath.ko' //private/devices/google/shusky:kernel
-
-    - name: Bypass GKI Symbol Whitelist
-      run: |
-        cd workspace
-        
-        # Create a list of the exact missing symbols the auditor complained about
-        cat << 'SYMEOF' > missing_symbols.txt
-        __dev_kfree_skb_irq
-        __hci_cmd_sync
-        __hci_cmd_sync_ev
-        __printk_ratelimit
-        __regmap_init
-        bit_wait_timeout
-        bt_err
-        bt_info
-        bt_to_errno
-        bt_warn
-        btbcm_set_bdaddr
-        btbcm_setup_apple
-        btbcm_setup_patchram
-        device_release_driver
-        gpiod_get_optional
-        gpiod_put
-        hci_alloc_dev_priv
-        hci_cmd_sync
-        hci_cmd_sync_cancel
-        hci_free_dev
-        hci_recv_diag
-        hci_recv_frame
-        hci_register_dev
-        hci_unregister_dev
-        out_of_line_wait_on_bit_timeout
-        rfkill_pause_polling
-        rhashtable_init
-        skb_pull_data
-        skb_unlink
-        usb_alloc_urb
-        usb_anchor_urb
-        usb_autopm_get_interface
-        usb_autopm_put_interface
-        usb_bulk_msg
-        usb_control_msg
-        usb_deregister
-        usb_driver_claim_interface
-        usb_driver_release_interface
-        usb_find_common_endpoints
-        usb_free_urb
-        usb_get_dev
-        usb_get_from_anchor
-        usb_get_urb
-        usb_ifnum_to_if
-        usb_interrupt_msg
-        usb_kill_anchored_urbs
-        usb_kill_urb
-        usb_match_id
-        usb_put_dev
-        usb_queue_reset_device
-        usb_register_driver
-        usb_reset_device
-        usb_scuttle_anchored_urbs
-        usb_set_interface
-        usb_submit_urb
-        usb_unanchor_urb
-        wake_up_bit
-        SYMEOF
-
-        # Forcefully inject these symbols into every single ABI whitelist file in the Google tree
-        find . -type f \( -name "*abi_symbollist*" -o -name "abi_gki_aarch64*" \) | while read file; do
-          cat missing_symbols.txt >> "$file"
-        done
-
     - name: Compile Pixel 8 Pro Kernel
       run: |
          cd workspace
          # Android 16 (6.1) uses Kleaf/Bazel via a device-specific wrapper script
          BUILD_AOSP_KERNEL=1 ./build_shusky.sh
 
-    - name: Package into AnyKernel3
+    - name: Prepare Fastboot Images
       run: |
-        git clone https://github.com/osm0sis/AnyKernel3 --depth=1 AnyKernel3
-        
-        # In the 6.1 Kleaf tree, the output path is out/shusky/dist/
-        cp workspace/out/shusky/dist/Image.lz4 AnyKernel3/
-        mkdir -p AnyKernel3/modules/vendor/lib/modules
-        cp workspace/out/shusky/dist/*.ko AnyKernel3/modules/vendor/lib/modules/ || true
-        
-        # Configure AnyKernel for shusky
-        sed -i 's/device.name1=/device.name1=husky/g' AnyKernel3/anykernel.sh
-        sed -i 's/device.name2=/device.name2=shiba/g' AnyKernel3/anykernel.sh
-        sed -i 's/BLOCK=auto/BLOCK=boot/g' AnyKernel3/anykernel.sh
-        sed -i 's/IS_SLOT_DEVICE=0/IS_SLOT_DEVICE=1/g' AnyKernel3/anykernel.sh
+         mkdir fastboot_images
+         # Grab the pre-packaged .img files directly from the Bazel output
+         cp workspace/out/shusky/dist/*.img fastboot_images/ || true
+         echo "The following images are ready for Fastboot:"
+         ls -lh fastboot_images/
 
-        cd AnyKernel3
-        zip -r9 ../Custom-Shusky-NetHunter-Kernel.zip * -x .git README.md
-
-    - name: Upload Flashable ZIP Artifact
+    - name: Upload Fastboot Images Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: NetHunter-Shusky-Kernel
-        path: Custom-Shusky-NetHunter-Kernel.zip
+        name: NetHunter-Shusky-Fastboot-Images
+        path: fastboot_images/
