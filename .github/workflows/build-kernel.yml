@@ -218,8 +218,8 @@ jobs:
     - name: Compile Pixel 8 Pro Kernel
       run: |
          cd workspace
-         # Standard compilation. No hacky flags, no unrecognized parameters.
-         BUILD_AOSP_KERNEL=1 ./build_shusky.sh
+         # Standard compilation. Adding hacky flags back in, stopping trim.
+         BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--trim_nonlisted_kmi=false" ./build_shusky.sh
 
     - name: Package into AnyKernel3 (64-bit Fixed)
       run: |
