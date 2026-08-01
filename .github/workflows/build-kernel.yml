@@ -223,38 +223,93 @@ jobs:
          # Native compilation. Disabling trimming and KMI checks using proper Bazel boolean syntax.
          BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode" ./build_shusky.sh
 
-    - name: Package into AnyKernel3 (64-bit Fixed)
+    - name: Package Kernel (AK3) and Modules (KSU)
       run: |
-         # 1. Clean up any leftover folders
-         rm -rf AnyKernel3 AnyKernel3-master anykernel.zip
+         cd workspace
          
-         # 2. Bypass git clone entirely by downloading the raw zip archive
+         # ==========================================
+         # PART 1: PACKAGE THE KERNEL (AnyKernel3)
+         # ==========================================
+         rm -rf AnyKernel3 anykernel.zip
          wget -qO anykernel.zip https://github.com/osm0sis/AnyKernel3/archive/master.zip
          unzip -q anykernel.zip
          mv AnyKernel3-master AnyKernel3
          
-         # 3. Replace 32-bit busybox with strictly 64-bit Musl for Tensor G3
-         # (Using the VERIFIED link to the official ARMv8 64-bit binary!)
-         wget -qO AnyKernel3/tools/busybox https://busybox.net/downloads/binaries/1.31.0-defconfig-multiarch-musl/busybox-armv8l
+         # Apply 64-bit Tensor G3 Fixes (Busybox & Magiskboot)
+         wget -qO AnyKernel3/tools/busybox https://raw.githubusercontent.com/xerta555/Busybox-Binaries/master/busybox-arm64
          chmod +x AnyKernel3/tools/busybox
          
-         # 4. Copy the compiled Kernel and Modules from the Bazel output
-         cp workspace/out/shusky/dist/Image* AnyKernel3/
-         mkdir -p AnyKernel3/modules/vendor/lib/modules
-         cp workspace/out/shusky/dist/*.ko AnyKernel3/modules/vendor/lib/modules/ || true
+         wget -qO magisk.zip https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk
+         unzip -j magisk.zip lib/arm64-v8a/libmagiskboot.so
+         mv libmagiskboot.so AnyKernel3/tools/magiskboot
+         chmod +x AnyKernel3/tools/magiskboot
+         rm magisk.zip
          
-         # 5. Configure AnyKernel script for Shusky/Shiba (Pixel 8 Series)
-         sed -i 's/device.name1=/device.name1=husky/g' AnyKernel3/anykernel.sh
-         sed -i 's/device.name2=/device.name2=shiba/g' AnyKernel3/anykernel.sh
-         sed -i 's/BLOCK=auto/BLOCK=boot/g' AnyKernel3/anykernel.sh
-         sed -i 's/IS_SLOT_DEVICE=0/IS_SLOT_DEVICE=1/g' AnyKernel3/anykernel.sh
-
-         # 6. Zip it all up into the final flashable file!
+         # Copy ONLY the compressed kernel to prevent 64MB partition overflow
+         cp out/shusky/dist/Image.lz4 AnyKernel3/
+         
+         # Generate clean, GKI-compliant AnyKernel script
+         cat << 'EOF' > AnyKernel3/anykernel.sh
+         ### AnyKernel3 Mod Script
+         properties() { '
+         kernel.string=Tweakers Paradise NetHunter Kernel
+         do.devicecheck=0
+         do.modules=0
+         do.systemless=1
+         do.cleanup=1
+         do.cleanuponabort=0
+         device.name1=husky
+         device.name2=shiba
+         device.name3=shusky
+         '; }
+         BLOCK=boot;
+         IS_SLOT_DEVICE=1;
+         RAMDISK_COMPRESSION=auto;
+         PATCH_VBMETA_FLAG=auto;
+         . tools/ak3-core.sh;
+         split_boot;
+         flash_boot;
+         EOF
+         
+         # Zip the final AK3 Flasher
          cd AnyKernel3
-         zip -r9 ../Custom-Shusky-NetHunter-Kernel.zip * -x README.md    
+         zip -r9 ../Tweakers-Paradise-Kernel-Pixel8Pro.zip * -x README.md
+         cd ..
+         
+         # ==========================================
+         # PART 2: PACKAGE THE KALI DRIVERS (KernelSU)
+         # ==========================================
+         mkdir -p ksu-module/system/vendor/lib/modules
+         
+         # Copy all compiled .ko drivers from Bazel output
+         cp out/shusky/dist/*.ko ksu-module/system/vendor/lib/modules/ 2>/dev/null || true
+         
+         # Generate KernelSU module properties
+         cat << 'EOF' > ksu-module/module.prop
+         id=nethunter-modules-shusky
+         name=NetHunter Tensor G3 Modules
+         version=v1.0
+         versionCode=1
+         author=Tweakers Paradise
+         description=Kali NetHunter Wi-Fi Injection and Bluetooth Modules for Pixel 8 Pro.
+         EOF
+         
+         # Zip the final KSU Module
+         cd ksu-module
+         zip -r9 ../NetHunter-Modules-KSU.zip *
+         cd ..
 
-    - name: Upload Flashable ZIP Artifact
+    - name: Upload Kernel Artifact (AK3)
       uses: actions/upload-artifact@v4
       with:
-        name: NetHunter-Shusky-Kernel
-        path: Custom-Shusky-NetHunter-Kernel.zip
+        name: Tweakers-Paradise-Kernel
+        path: workspace/Tweakers-Paradise-Kernel-Pixel8Pro.zip
+
+    - name: Upload Modules Artifact (KSU)
+      uses: actions/upload-artifact@v4
+      with:
+        name: NetHunter-KSU-Modules
+        path: workspace/NetHunter-Modules-KSU.zip
+
+
+    
