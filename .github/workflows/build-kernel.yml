@@ -265,10 +265,10 @@ jobs:
          '; }
          
          # 1. Flash the core Kernel (boot)
-         block=boot;
-         is_slot_device=1;
-         ramdisk_compression=auto;
-         patch_vbmeta_flag=auto;
+         BLOCK=boot;
+         IS_SLOT_DEVICE=1;
+         RAMDISK_COMPRESSION=auto;
+         PATCH_VBMETA_FLAG=auto;
          . tools/ak3-core.sh;
          split_boot;
          flash_boot;
@@ -276,8 +276,8 @@ jobs:
          # 2. Flash the matched hardware drivers (vendor_dlkm)
          if [ -f "$home/vendor_dlkm.img" ]; then
              reset_ak;
-             block=vendor_dlkm;
-             is_slot_device=1;
+             BLOCK=vendor_dlkm;
+             IS_SLOT_DEVICE=1;
              . tools/ak3-core.sh;
              flash_generic vendor_dlkm;
          fi
@@ -285,13 +285,13 @@ jobs:
          # 3. Flash the matched system drivers (system_dlkm)
          if [ -f "$home/system_dlkm.img" ]; then
              reset_ak;
-             block=system_dlkm;
-             is_slot_device=1;
+             BLOCK=system_dlkm;
+             IS_SLOT_DEVICE=1;
              . tools/ak3-core.sh;
              flash_generic system_dlkm;
          fi
          EOF
-         
+                  
          # Zip the final AK3 Flasher
          cd AnyKernel3
          zip -r9 ../Tweakers-Paradise-Kernel-Pixel8Pro.zip * -x README.md
