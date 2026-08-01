@@ -225,18 +225,20 @@ jobs:
 
     - name: Package into AnyKernel3 (64-bit Fixed)
       run: |
-         # 1. Clean up any leftover ghost folders from failed runs
-         rm -rf AnyKernel3
+         # 1. Clean up any leftover folders
+         rm -rf AnyKernel3 AnyKernel3-master anykernel.zip
          
-         # 2. Clone AnyKernel3 with an automatic retry loop to bypass network glitches
-         for i in {1..5}; do git clone https://github.com/osm0sis/AnyKernel3 --depth=1 AnyKernel3 && break || sleep 5; done
+         # 2. Bypass git clone entirely by downloading the raw zip archive
+         wget -qO anykernel.zip https://github.com/osm0sis/AnyKernel3/archive/refs/heads/master.zip
+         unzip -q anykernel.zip
+         mv AnyKernel3-master AnyKernel3
          
          # 3. Replace 32-bit busybox with strictly 64-bit Musl for Tensor G3
          wget -qO AnyKernel3/tools/busybox https://busybox.net/downloads/binaries/1.35.0-aarch64-linux-musl/busybox
          chmod +x AnyKernel3/tools/busybox
          
          # 4. Copy the compiled Kernel and Modules from the Bazel output
-         cp workspace/out/shusky/dist/Image.lz4 AnyKernel3/
+         cp workspace/out/shusky/dist/Image* AnyKernel3/
          mkdir -p AnyKernel3/modules/vendor/lib/modules
          cp workspace/out/shusky/dist/*.ko AnyKernel3/modules/vendor/lib/modules/ || true
          
@@ -248,7 +250,7 @@ jobs:
 
          # 6. Zip it all up into the final flashable file!
          cd AnyKernel3
-         zip -r9 ../Custom-Shusky-NetHunter-Kernel.zip * -x .git README.md
+         zip -r9 ../Custom-Shusky-NetHunter-Kernel.zip * -x README.md
 
     - name: Upload Flashable ZIP Artifact
       uses: actions/upload-artifact@v4
