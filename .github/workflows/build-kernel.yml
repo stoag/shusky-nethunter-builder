@@ -243,13 +243,13 @@ jobs:
         cp out/shusky/dist/*.ko ksu-module/system/vendor/lib/modules/ 2>/dev/null || true
         
         cat << 'EOF' > ksu-module/module.prop
-id=nethunter-modules-shusky
-name=NetHunter Tensor G3 Modules
-version=v1.0
-versionCode=1
-author=Tweakers Paradise
-description=Kali NetHunter Wi-Fi Injection and Bluetooth Drivers for Pixel 8 Pro.
-EOF
+        id=nethunter-modules-shusky
+        name=NetHunter Tensor G3 Modules
+        version=v1.0
+        versionCode=1
+        author=Tweakers Paradise
+        description=Kali NetHunter Wi-Fi Injection and Bluetooth Drivers for Pixel 8 Pro.
+        EOF
         
         cd ksu-module
         zip -r9 ../NetHunter-Modules-KSU.zip *
