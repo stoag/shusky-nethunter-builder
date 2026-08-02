@@ -1,4 +1,4 @@
-name: Build Pixel 8 Pro Tweakers Paradise - NetHunter + KernelSU Next + ConfigFS
+name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU Next + ConfigFS
 
 on:
   workflow_dispatch:
@@ -35,7 +35,7 @@ jobs:
         repo init -u https://android.googlesource.com/kernel/manifest \
             -b android-gs-shusky-6.1-android16 --depth=1
         
-        # Sync only what is necessary to conserve storage and bandwidth
+        # Sync required repositories to conserve runner storage
         repo sync -c -j$(nproc) --no-tags --no-clone-bundle
 
     - name: Apply Kali NetHunter Drivers & Patches
@@ -47,31 +47,31 @@ jobs:
         patch -p1 < injection.patch || true
         rm injection.patch
 
-        # 2. Mark MAC80211_LEDS as broken in Kconfig to avoid missing LED symbols
+        # 2. Mark MAC80211_LEDS as broken in Kconfig to prevent missing LED symbol panics
         find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +
         sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig
 
-        # 3. Download and apply HID gadget patch
+        # 3. Download and apply HID gadget patch (USB Arsenal / DuckHunter)
         curl -s https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0002-hid-gadget.patch > hid.patch
         patch -p1 < hid.patch || true
         rm hid.patch
 
-    - name: Apply KernelSU Next Patches
+    - name: Apply KernelSU Next Patches & Configs
       run: |
         cd workspace/aosp
         
-        # 1. Install KernelSU Next (Default Next Branch)
+        # 1. Inject KernelSU Next inline source code
         curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
         
-        # 2. Enable KSU, ConfigFS, Disable KMI Trimming, and Modular Wi-Fi Drivers
+        # 2. Enable KSU, ConfigFS, Networking Subsystems, and Filesystems
         cat << 'EOF' >> arch/arm64/configs/gki_defconfig
-        # KSU
+        # Inline KernelSU Next
         CONFIG_KSU=y
 
         # Disable Google GKI Symbol Trimming
         CONFIG_TRIM_NONLISTED_KMI=n
 
-        # USB Arsenal & HID
+        # USB ConfigFS & HID Arsenal
         CONFIG_CONFIGFS_FS=y
         CONFIG_USB_CONFIGFS=y
         CONFIG_USB_GADGETFS=y
@@ -80,7 +80,7 @@ jobs:
         CONFIG_USB_CONFIGFS_F_ECM=y
         CONFIG_USB_CONFIGFS_F_ACM=y
 
-        # Mac80211 Subsystem (Required for Injection)
+        # Mac80211 Subsystem (Wireless Injection Support)
         CONFIG_MAC80211=y
         CONFIG_MAC80211_RC_MINSTREL=y
         CONFIG_MAC80211_RC_MINSTREL_HT=y
@@ -88,54 +88,52 @@ jobs:
         CONFIG_MAC80211_RC_DEFAULT_MINSTREL=y
         CONFIG_MAC80211_MESH=y
         CONFIG_CFG80211=y
-        
-        # Prevent Native LED Calls
         # CONFIG_MAC80211_LEDS is not set
 
-        # External Wi-Fi Adapters (Atheros & Realtek Enabled)
+        # External Wi-Fi Adapters (Atheros & Realtek)
         CONFIG_WLAN_VENDOR_ATH=y
         CONFIG_ATH9K_HTC=m
         CONFIG_WLAN_VENDOR_REALTEK=y
         CONFIG_RTL8187=m
         
-        # External BT & Networking
+        # Bluetooth & VPN Support
         CONFIG_BT_HCIBTUSB=m
         CONFIG_WIREGUARD=y
         
-        # CPU Frequency Governors
+        # CPU Governors
         CONFIG_CPU_FREQ_GOV_PERFORMANCE=y
         CONFIG_CPU_FREQ_GOV_POWERSAVE=y
         CONFIG_CPU_FREQ_GOV_USERSPACE=y
         CONFIG_CPU_FREQ_GOV_ONDEMAND=y
         CONFIG_CPU_FREQ_GOV_CONSERVATIVE=y
 
-        # Advanced Power Supply & Thermal Debugging
+        # Thermal & Power Debugging
         CONFIG_POWER_SUPPLY_DEBUG=y
         CONFIG_DEBUG_FS=y
         CONFIG_THERMAL_GOV_USER_SPACE=y
 
-        # BBR TCP Congestion Control
+        # Networking Optimizations & BBR TCP
         CONFIG_TCP_CONG_BBR=y
         CONFIG_NET_SCH_FQ=y
         CONFIG_DEFAULT_BBR=y
 
-        # TTL Modification
+        # TTL Modification Support
         CONFIG_NETFILTER_XT_TARGET_HL=y
         CONFIG_IP_NF_TARGET_TTL=y
         CONFIG_IP6_NF_TARGET_HL=y
 
-        # Native High-Capacity Drive Support
+        # Drive & Filesystem Support
         CONFIG_NTFS3_FS=y
         CONFIG_EXFAT_FS=y
         CONFIG_ISO9660_FS=y
         CONFIG_UDF_FS=y
         EOF
 
-    - name: Authorize Kali Symbols in GKI
+    - name: Authorize NetHunter Symbols in GKI
       run: |
         cd workspace
         
-        # 1. Create the master list of required Kali symbols
+        # 1. Master list of required Kali network & driver symbols
         cat << 'EOF' > missing_symbols.txt
         __dev_kfree_skb_irq
         __hci_cmd_sync
@@ -196,92 +194,75 @@ jobs:
         wake_up_bit
         EOF
         
-        echo "Injecting missing symbols directly into Google's source whitelists..."
-        
-        # 2. Append them to the ACTUAL Google symbol lists across the entire workspace
-        # We use grep -vE to strictly prevent touching Bazel scripts or code.
+        # 2. Append symbols to Google whitelist manifests across workspace
         find . -type f \( -name "abi_gki_aarch64*" -o -name "*symbol_list*" \) | grep -vE "\.(bzl|stg|xml|json|html|sh|py)$" | while read -r list_file; do
-            echo "Updating $list_file"
+            echo "Updating symbol list: $list_file"
             chmod u+w "$list_file" || true
             echo "" >> "$list_file"
             cat missing_symbols.txt >> "$list_file"
         done
-        
+
     - name: Whitelist Custom Modules in Bazel
       run: |
         cd workspace
-        # Download Google's buildozer tool to safely inject into Bazel manifests
+        # Download buildozer to patch Bazel build manifests safely
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/download/v7.1.2/buildozer-linux-amd64
         chmod +x buildozer
         
-        # Add the newly compiled Kali modules to the shusky whitelist
+        # Inject custom compiled modules into the shusky build targets
         ./buildozer 'add module_outs drivers/bluetooth/btusb.ko drivers/net/wireless/ath/ath.ko drivers/net/wireless/ath/ath9k/ath9k_common.ko drivers/bluetooth/btintel.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/bluetooth/btrtl.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko' //private/devices/google/shusky:kernel
 
-    - name: Compile Pixel 8 Pro Kernel
+    - name: Compile Pixel 8 Pro Kernel via Bazel
       run: |
-         cd workspace
-         # Native compilation. Disabling trimming and KMI checks using proper Bazel boolean syntax.
-         BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode" ./build_shusky.sh
+        cd workspace
+        BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode" ./build_shusky.sh
 
-    - name: Package Kernel (AK3) and Modules (KSU)
+    - name: Package Kernel Partition Images & KernelSU Modules
       run: |
-         cd workspace
+        cd workspace
 
-         # ==========================================
-         # PART 1: PACKAGE THE KERNEL (RAW IMAGES)
-         # ==========================================
-         mkdir -p GKI-Kernel-Release
-         
-         # Copy the exact partition images Bazel just built
-         cp out/shusky/dist/boot.img GKI-Kernel-Release/
-         cp out/shusky/dist/vendor_kernel_boot.img GKI-Kernel-Release/
-         cp out/shusky/dist/vendor_dlkm.img GKI-Kernel-Release/
-         cp out/shusky/dist/system_dlkm.img GKI-Kernel-Release/ 2>/dev/null || true
-         
-         # Zip them up into a standard storage zip (NOT an AnyKernel zip)
-         cd GKI-Kernel-Release
-         zip -r9 ../Tweakers-Paradise-GKI-Pixel8Pro.zip *
-         cd ..         
-                
-         # ==========================================
-         # PART 2: PACKAGE THE KALI DRIVERS (KernelSU)
-         # ==========================================
-         mkdir -p ksu-module/system/vendor/lib/modules
-         
-         # Copy all compiled .ko drivers from Bazel output
-         cp out/shusky/dist/*.ko ksu-module/system/vendor/lib/modules/ 2>/dev/null || true
-         
-         # Generate KernelSU module properties
-         cat << 'EOF' > ksu-module/module.prop
-         id=nethunter-modules-shusky
-         name=NetHunter Tensor G3 Modules
-         version=v1.0
-         versionCode=1
-         author=Tweakers Paradise
-         description=Kali NetHunter Wi-Fi Injection and Bluetooth Modules for Pixel 8 Pro.
-         EOF
-         
-         # Zip the final KSU Module
-         cd ksu-module
-         zip -r9 ../NetHunter-Modules-KSU.zip *
-         cd ..
+        # ==========================================
+        # PART 1: PACKAGE RAW GKI PARTITION IMAGES
+        # ==========================================
+        mkdir -p GKI-Kernel-Release
+        
+        cp out/shusky/dist/boot.img GKI-Kernel-Release/
+        cp out/shusky/dist/vendor_kernel_boot.img GKI-Kernel-Release/
+        cp out/shusky/dist/vendor_dlkm.img GKI-Kernel-Release/
+        cp out/shusky/dist/system_dlkm.img GKI-Kernel-Release/ 2>/dev/null || true
+        
+        cd GKI-Kernel-Release
+        zip -r9 ../Tweakers-Paradise-GKI-Pixel8Pro.zip *
+        cd ..
+        
+        # ==========================================
+        # PART 2: PACKAGE KALI DRIVER MODULES (KSU)
+        # ==========================================
+        mkdir -p ksu-module/system/vendor/lib/modules
+        
+        cp out/shusky/dist/*.ko ksu-module/system/vendor/lib/modules/ 2>/dev/null || true
+        
+        cat << 'EOF' > ksu-module/module.prop
+id=nethunter-modules-shusky
+name=NetHunter Tensor G3 Modules
+version=v1.0
+versionCode=1
+author=Tweakers Paradise
+description=Kali NetHunter Wi-Fi Injection and Bluetooth Drivers for Pixel 8 Pro.
+EOF
+        
+        cd ksu-module
+        zip -r9 ../NetHunter-Modules-KSU.zip *
+        cd ..
 
-    - name: Upload Kernel Artifact (AK3)
+    - name: Upload Raw GKI Kernel Images Zip
       uses: actions/upload-artifact@v4
       with:
-        name: Tweakers-Paradise-Kernel
-        path: workspace/Tweakers-Paradise-Kernel-Pixel8Pro.zip
+        name: Tweakers-Paradise-GKI-Kernel-Images
+        path: workspace/Tweakers-Paradise-GKI-Pixel8Pro.zip
 
-    - name: Upload Modules Artifact (KSU)
+    - name: Upload NetHunter KSU Modules Zip
       uses: actions/upload-artifact@v4
       with:
         name: NetHunter-KSU-Modules
         path: workspace/NetHunter-Modules-KSU.zip
-
-    - name: Upload Matched GKI Drivers (vendor_dlkm)
-      uses: actions/upload-artifact@v4
-      with:
-        name: Matched-GKI-Drivers
-        path: |
-          workspace/out/shusky/dist/vendor_dlkm.img
-          workspace/out/shusky/dist/system_dlkm.img
