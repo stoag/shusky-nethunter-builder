@@ -228,75 +228,20 @@ jobs:
          cd workspace
 
          # ==========================================
-         # PART 1: PACKAGE THE KERNEL (AnyKernel3)
+         # PART 1: PACKAGE THE KERNEL (RAW IMAGES)
          # ==========================================
-         rm -rf AnyKernel3 anykernel.zip
-         wget -qO anykernel.zip https://github.com/osm0sis/AnyKernel3/archive/master.zip
-         unzip -q anykernel.zip
-         mv AnyKernel3-master AnyKernel3
+         mkdir -p GKI-Kernel-Release
          
-         # Apply 64-bit Tensor G3 Fixes
-         wget -qO AnyKernel3/tools/busybox https://raw.githubusercontent.com/xerta555/Busybox-Binaries/master/busybox-arm64
-         chmod +x AnyKernel3/tools/busybox
-         wget -qO magisk.zip https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk
-         unzip -j magisk.zip lib/arm64-v8a/libmagiskboot.so
-         mv libmagiskboot.so AnyKernel3/tools/magiskboot
-         chmod +x AnyKernel3/tools/magiskboot
-         rm magisk.zip
+         # Copy the exact partition images Bazel just built
+         cp out/shusky/dist/boot.img GKI-Kernel-Release/
+         cp out/shusky/dist/vendor_kernel_boot.img GKI-Kernel-Release/
+         cp out/shusky/dist/vendor_dlkm.img GKI-Kernel-Release/
+         cp out/shusky/dist/system_dlkm.img GKI-Kernel-Release/ 2>/dev/null || true
          
-         # Copy the Kernel AND the matched GKI hardware drivers into the zip!
-         cp out/shusky/dist/Image.lz4 AnyKernel3/
-         cp out/shusky/dist/vendor_dlkm.img AnyKernel3/ 2>/dev/null || true
-         cp out/shusky/dist/system_dlkm.img AnyKernel3/ 2>/dev/null || true
-         
-         # Generate Multi-Partition AnyKernel script
-         cat << 'EOF' > AnyKernel3/anykernel.sh
-         ### AnyKernel3 Mod Script
-         properties() { '
-         kernel.string=Tweakers Paradise NetHunter Kernel
-         do.devicecheck=0
-         do.modules=0
-         do.systemless=1
-         do.cleanup=1
-         do.cleanuponabort=0
-         device.name1=husky
-         device.name2=shiba
-         device.name3=shusky
-         '; }
-         
-         # 1. Flash the core Kernel (boot)
-         BLOCK=boot;
-         IS_SLOT_DEVICE=1;
-         RAMDISK_COMPRESSION=auto;
-         PATCH_VBMETA_FLAG=auto;
-         . tools/ak3-core.sh;
-         split_boot;
-         flash_boot;
-         
-         # 2. Flash the matched hardware drivers (vendor_dlkm)
-         if [ -f "$home/vendor_dlkm.img" ]; then
-             reset_ak;
-             BLOCK=vendor_dlkm;
-             IS_SLOT_DEVICE=1;
-             . tools/ak3-core.sh;
-             flash_generic vendor_dlkm;
-         fi
-         
-         # 3. Flash the matched system drivers (system_dlkm)
-         if [ -f "$home/system_dlkm.img" ]; then
-             reset_ak;
-             BLOCK=system_dlkm;
-             IS_SLOT_DEVICE=1;
-             . tools/ak3-core.sh;
-             flash_generic system_dlkm;
-         fi
-         EOF
-                  
-         # Zip the final AK3 Flasher
-         cd AnyKernel3
-         zip -r9 ../Tweakers-Paradise-Kernel-Pixel8Pro.zip * -x README.md
-         cd ..
-         
+         # Zip them up into a standard storage zip (NOT an AnyKernel zip)
+         cd GKI-Kernel-Release
+         zip -r9 ../Tweakers-Paradise-GKI-Pixel8Pro.zip *
+         cd ..         
                 
          # ==========================================
          # PART 2: PACKAGE THE KALI DRIVERS (KernelSU)
