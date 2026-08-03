@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      CUSTOM_KERNEL_VERSION: "tweaker.kernel.v1.00"
+      CUSTOM_KERNEL_VERSION: "tweaker.v1.00"
       
     steps:
     - name: Free Runner Disk Space
