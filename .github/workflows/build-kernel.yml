@@ -198,55 +198,94 @@ jobs:
       run: |
         cd workspace
         BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode" ./build_shusky.sh
-    - name: Package Kernel Partition Images & KernelSU Modules
+
+    - name: Package Kernel, Drivers, and KSU Modules
       run: |
         cd workspace
-        # ==========================================
-        # PART 1: PACKAGE RAW GKI PARTITION IMAGES
-        # ==========================================
-        mkdir -p GKI-Kernel-Release
         
-        cp out/shusky/dist/boot.img GKI-Kernel-Release/
-        cp out/shusky/dist/vendor_kernel_boot.img GKI-Kernel-Release/
-        cp out/shusky/dist/vendor_dlkm.img GKI-Kernel-Release/
-        cp out/shusky/dist/system_dlkm.img GKI-Kernel-Release/ 2>/dev/null || true
+        # ==========================================
+        # PART 1: ANYKERNEL3 ZIP (BOOT & AVB PATCH)
+        # ==========================================
+        wget -qO anykernel.zip https://github.com/osm0sis/AnyKernel3/archive/master.zip
+        unzip -q anykernel.zip
+        mv AnyKernel3-master AnyKernel3
         
-        cd GKI-Kernel-Release
-        zip -r9 ../Tweakers-Paradise-GKI-Pixel8Pro.zip *
+        # 64-bit Binaries for Tensor G3
+        wget -qO AnyKernel3/tools/busybox https://raw.githubusercontent.com/xerta555/Busybox-Binaries/master/busybox-arm64
+        chmod +x AnyKernel3/tools/busybox
+        wget -qO magisk.zip https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk
+        unzip -j magisk.zip lib/arm64-v8a/libmagiskboot.so
+        mv libmagiskboot.so AnyKernel3/tools/magiskboot
+        chmod +x AnyKernel3/tools/magiskboot
+        rm magisk.zip
+        
+        # Copy the raw compiled kernel (Image.lz4) instead of the full boot.img
+        cp out/shusky/dist/Image.lz4 AnyKernel3/
+        
+        # Build the configuration file using echo to prevent YAML parsing errors
+        echo "properties() {" > AnyKernel3/anykernel.sh
+        echo "kernel.string=Tweaker Kernel" >> AnyKernel3/anykernel.sh
+        echo "do.devicecheck=0" >> AnyKernel3/anykernel.sh
+        echo "do.modules=0" >> AnyKernel3/anykernel.sh
+        echo "do.systemless=1" >> AnyKernel3/anykernel.sh
+        echo "do.cleanup=1" >> AnyKernel3/anykernel.sh
+        echo "do.cleanuponabort=0" >> AnyKernel3/anykernel.sh
+        echo "device.name1=husky" >> AnyKernel3/anykernel.sh
+        echo "device.name2=shiba" >> AnyKernel3/anykernel.sh
+        echo "device.name3=shusky" >> AnyKernel3/anykernel.sh
+        echo "}" >> AnyKernel3/anykernel.sh
+        echo "block=boot;" >> AnyKernel3/anykernel.sh
+        echo "is_slot_device=1;" >> AnyKernel3/anykernel.sh
+        echo "ramdisk_compression=auto;" >> AnyKernel3/anykernel.sh
+        echo "patch_vbmeta_flag=auto;" >> AnyKernel3/anykernel.sh
+        echo ". tools/ak3-core.sh;" >> AnyKernel3/anykernel.sh
+        echo "split_boot;" >> AnyKernel3/anykernel.sh
+        echo "flash_boot;" >> AnyKernel3/anykernel.sh
+        
+        cd AnyKernel3
+        zip -r9 ../Tweaker-Kernel-AK3-Boot.zip * -x README.md
+        cd ..
+
+        # ==========================================
+        # PART 2: RAW GKI HARDWARE DRIVERS
+        # ==========================================
+        mkdir -p GKI-Raw-Drivers
+        cp out/shusky/dist/vendor_kernel_boot.img GKI-Raw-Drivers/
+        cp out/shusky/dist/vendor_dlkm.img GKI-Raw-Drivers/
+        cp out/shusky/dist/system_dlkm.img GKI-Raw-Drivers/ 2>/dev/null || true
+        
+        cd GKI-Raw-Drivers
+        zip -r9 ../Tweaker-Raw-Drivers.zip *
         cd ..
         
         # ==========================================
-        # PART 2: PACKAGE KALI DRIVER MODULES (KSU)
+        # PART 3: PACKAGE KALI DRIVER MODULES (KSU)
         # ==========================================
         mkdir -p ksu-module/system/vendor/lib/modules
-        
         cp out/shusky/dist/*.ko ksu-module/system/vendor/lib/modules/ 2>/dev/null || true
         
-        cat << 'EOF' > ksu-module/module.prop
-            id=nethunter-modules-shusky
-             Check failure on line 246 in .github/workflows/build-kernel.yml
-
-            GitHub Actions
-            / .github/workflows/build-kernel.yml
-            Invalid workflow file
-
-            You have an error in your yaml syntax on line 246
-            name=NetHunter Tensor G3 Modules
-            version=v1.0
-            versionCode=1
-            author=Tweakers Paradise
-            description=Kali NetHunter Wi-Fi Injection and Bluetooth Drivers for Pixel 8 Pro.
-            EOF
+        echo "id=nethunter-modules-shusky" > ksu-module/module.prop
+        echo "name=NetHunter Tensor G3 Modules" >> ksu-module/module.prop
+        echo "version=v1.0" >> ksu-module/module.prop
+        echo "versionCode=1" >> ksu-module/module.prop
+        echo "author=stoag" >> ksu-module/module.prop
+        echo "description=Kali NetHunter Wi-Fi Injection and Bluetooth Drivers for Pixel 8 Pro." >> ksu-module/module.prop
         
         cd ksu-module
         zip -r9 ../NetHunter-Modules-KSU.zip *
         cd ..
 
-    - name: Upload Raw GKI Kernel Images Zip
+    - name: Upload AK3 Boot Zip
       uses: actions/upload-artifact@v4
       with:
-        name: Tweakers-Paradise-GKI-Kernel-Images
-        path: workspace/Tweakers-Paradise-GKI-Pixel8Pro.zip
+        name: Tweaker-Kernel-AK3-Boot
+        path: workspace/Tweaker-Kernel-AK3-Boot.zip
+
+    - name: Upload Raw Drivers
+      uses: actions/upload-artifact@v4
+      with:
+        name: Tweaker-Raw-Drivers
+        path: workspace/Tweaker-Raw-Drivers.zip
 
     - name: Upload NetHunter KSU Modules Zip
       uses: actions/upload-artifact@v4
