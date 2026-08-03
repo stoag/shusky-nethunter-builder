@@ -89,11 +89,18 @@ jobs:
         CONFIG_MAC80211_MESH=y
         CONFIG_CFG80211=y
         # CONFIG_MAC80211_LEDS is not set
-        # External Wi-Fi Adapters (Atheros & Realtek)
+        
+        # External Wi-Fi Adapters (Atheros, Realtek, & Ralink)
         CONFIG_WLAN_VENDOR_ATH=y
         CONFIG_ATH9K_HTC=m
         CONFIG_WLAN_VENDOR_REALTEK=y
         CONFIG_RTL8187=m
+        CONFIG_RTL8XXXU=m
+        CONFIG_WLAN_VENDOR_RALINK=y
+        CONFIG_RT2X00=m
+        CONFIG_RT2X00_USB=m
+        CONFIG_RT2800_LIB=m
+        CONFIG_RT2800_USB=m
         
         # Bluetooth & VPN Support
         CONFIG_BT_HCIBTUSB=m
@@ -203,8 +210,8 @@ jobs:
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/download/v7.1.2/buildozer-linux-amd64
         chmod +x buildozer
         
-        # Inject custom compiled modules into the shusky build targets
-        ./buildozer 'add module_outs drivers/bluetooth/btusb.ko drivers/net/wireless/ath/ath.ko drivers/net/wireless/ath/ath9k/ath9k_common.ko drivers/bluetooth/btintel.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/bluetooth/btrtl.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko' //private/devices/google/shusky:kernel
+        # Inject custom compiled modules (Atheros, Realtek, Ralink) into the shusky build targets
+        ./buildozer 'add module_outs drivers/bluetooth/btusb.ko drivers/net/wireless/ath/ath.ko drivers/net/wireless/ath/ath9k/ath9k_common.ko drivers/bluetooth/btintel.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/bluetooth/btrtl.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.ko drivers/net/wireless/ralink/rt2x00/rt2x00lib.ko drivers/net/wireless/ralink/rt2x00/rt2x00usb.ko drivers/net/wireless/ralink/rt2x00/rt2800lib.ko drivers/net/wireless/ralink/rt2x00/rt2800usb.ko' //private/devices/google/shusky:kernel
     - name: Compile Pixel 8 Pro Kernel via Bazel
       run: |
         cd workspace
@@ -274,17 +281,22 @@ jobs:
         cd ..
         
         # ==========================================
-        # PART 3: PACKAGE KALI DRIVER MODULES (KSU)
+        # PART 3: PACKAGE KALI DRIVER MODULES & FIRMWARE (KSU)
         # ==========================================
         mkdir -p ksu-module/system/vendor/lib/modules
+        mkdir -p ksu-module/system/vendor/firmware
+        
         cp out/shusky/dist/*.ko ksu-module/system/vendor/lib/modules/ 2>/dev/null || true
         
+        # Pull essential Ralink / USB wireless firmware blobs directly into vendor firmware
+        wget -qO ksu-module/system/vendor/firmware/rt2870.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/rt2870.bin
+        
         echo "id=nethunter-modules-shusky" > ksu-module/module.prop
-        echo "name=NetHunter Tensor G3 Modules" >> ksu-module/module.prop
+        echo "name=NetHunter Tensor G3 Modules & Firmware" >> ksu-module/module.prop
         echo "version=${{ env.CUSTOM_KERNEL_VERSION }}" >> ksu-module/module.prop
         echo "versionCode=1" >> ksu-module/module.prop
         echo "author=stoag" >> ksu-module/module.prop
-        echo "description=Kali NetHunter Wi-Fi Injection and Bluetooth Drivers for Pixel 8 Pro." >> ksu-module/module.prop
+        echo "description=Kali NetHunter Wi-Fi Injection Drivers and Firmware for Pixel 8 Pro (Atheros, Realtek, Ralink)." >> ksu-module/module.prop
         
         cd ksu-module
         zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-NetHunter-Modules.zip *
