@@ -6,7 +6,10 @@ on:
 jobs:
   build-kernel:
     runs-on: ubuntu-latest
-    
+
+    env:
+      CUSTOM_KERNEL_VERSION: "tweaker.kernel.v1.00"
+      
     steps:
     - name: Free Runner Disk Space
       run: |
@@ -37,7 +40,7 @@ jobs:
     - name: Set Custom Kernel Localversion Name
       run: |
         cd workspace/aosp
-        echo "-Tweaker-Kernel" > .scmversion
+        echo "${{ env.CUSTOM_KERNEL_VERSION }}" > .scmversion
     - name: Apply Kali NetHunter Drivers & Patches
       run: |
         cd workspace/aosp # Main GKI Linux kernel tree
@@ -60,11 +63,20 @@ jobs:
         # 1. Inject KernelSU Next inline source code
         curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
         
-        # 2. Enable KSU, ConfigFS, Networking Subsystems, Filesystems, and Custom Localversion
+        - name: Apply KernelSU Next Patches & Configs
+      run: |
+        cd workspace/aosp
+        
+        # 1. Inject KernelSU Next inline source code
+        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
+        
+        # 2. Dynamically inject your version variable into the config
+        echo "CONFIG_LOCALVERSION=\"${{ env.CUSTOM_KERNEL_VERSION }}\"" >> arch/arm64/configs/gki_defconfig
+        
+        # 3. Append the rest of your configs safely using a quoted EOF block
         cat << 'EOF' >> arch/arm64/configs/gki_defconfig
-        # Inline KernelSU Next & Custom Identity
+        # Inline KernelSU Next
         CONFIG_KSU=y
-        CONFIG_LOCALVERSION="-Tweaker-Kernel"
         # Disable Google GKI Symbol Trimming
         CONFIG_TRIM_NONLISTED_KMI=n
         # USB ConfigFS & HID Arsenal
@@ -118,6 +130,7 @@ jobs:
         CONFIG_ISO9660_FS=y
         CONFIG_UDF_FS=y
         EOF
+        
     - name: Authorize NetHunter Symbols in GKI
       run: |
         cd workspace
