@@ -222,7 +222,7 @@ jobs:
         cd workspace
         BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode" ./build_shusky.sh
 
-    - name: Package Kernel, Drivers, and KSU Modules
+    - name: Package Kernel and Raw Driver Partitions
       run: |
         cd workspace
         
@@ -284,28 +284,6 @@ jobs:
         cd GKI-Raw-Drivers
         zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Raw-Drivers.zip *
         cd ..
-        
-        # ==========================================
-        # PART 3: PACKAGE KALI DRIVER MODULES & FIRMWARE (OPTIONAL FALLBACK)
-        # ==========================================
-        mkdir -p ksu-module/system/vendor/lib/modules
-        mkdir -p ksu-module/system/vendor/firmware
-        
-        cp out/shusky/dist/*.ko ksu-module/system/vendor/lib/modules/ 2>/dev/null || true
-        
-        # Pull essential Ralink / USB wireless firmware blobs directly into vendor firmware
-        wget -qO ksu-module/system/vendor/firmware/rt2870.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/rt2870.bin
-        
-        echo "id=nethunter-modules-shusky" > ksu-module/module.prop
-        echo "name=NetHunter Tensor G3 Modules & Firmware" >> ksu-module/module.prop
-        echo "version=${{ env.CUSTOM_KERNEL_VERSION }}" >> ksu-module/module.prop
-        echo "versionCode=1" >> ksu-module/module.prop
-        echo "author=stoag" >> ksu-module/module.prop
-        echo "description=Kali NetHunter Wi-Fi Injection Drivers and Firmware for Pixel 8 Pro (Atheros, Realtek, Ralink)." >> ksu-module/module.prop
-        
-        cd ksu-module
-        zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-NetHunter-Modules.zip *
-        cd ..
 
     - name: Upload AK3 Boot Zip
       uses: actions/upload-artifact@v4
@@ -318,9 +296,3 @@ jobs:
       with:
         name: Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Raw-Drivers
         path: workspace/Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Raw-Drivers.zip
-
-    - name: Upload NetHunter KSU Modules Zip
-      uses: actions/upload-artifact@v4
-      with:
-        name: NetHunter-Modules-${{ env.CUSTOM_KERNEL_VERSION }}
-        path: workspace/Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-NetHunter-Modules.zip
