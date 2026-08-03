@@ -34,6 +34,10 @@ jobs:
         
         # Sync required repositories to conserve runner storage
         repo sync -c -j$(nproc) --no-tags --no-clone-bundle
+    - name: Set Custom Kernel Localversion Name
+      run: |
+        cd workspace/aosp
+        echo "-Tweaker-Kernel" > .scmversion
     - name: Apply Kali NetHunter Drivers & Patches
       run: |
         cd workspace/aosp # Main GKI Linux kernel tree
@@ -56,10 +60,11 @@ jobs:
         # 1. Inject KernelSU Next inline source code
         curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
         
-        # 2. Enable KSU, ConfigFS, Networking Subsystems, and Filesystems
+        # 2. Enable KSU, ConfigFS, Networking Subsystems, Filesystems, and Custom Localversion
         cat << 'EOF' >> arch/arm64/configs/gki_defconfig
-        # Inline KernelSU Next
+        # Inline KernelSU Next & Custom Identity
         CONFIG_KSU=y
+        CONFIG_LOCALVERSION="-Tweaker-Kernel"
         # Disable Google GKI Symbol Trimming
         CONFIG_TRIM_NONLISTED_KMI=n
         # USB ConfigFS & HID Arsenal
