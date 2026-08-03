@@ -50,8 +50,8 @@ jobs:
         
         # Sync required repositories to conserve runner storage
         repo sync -c -j$(nproc) --no-tags --no-clone-bundle
-      
-    - name: Apply Kali NetHunter Drivers & Patches
+
+    - name: Apply Kali NetHunter Subsystem Overrides
       run: |
         cd workspace/aosp # Main GKI Linux kernel tree
         
@@ -146,4 +146,181 @@ jobs:
         __printk_ratelimit
         __regmap_init
         bit_wait_timeout
-        bt_
+        bt_err
+        bt_info
+        bt_to_errno
+        bt_warn
+        btbcm_set_bdaddr
+        btbcm_setup_apple
+        btbcm_setup_patchram
+        device_release_driver
+        gpiod_get_optional
+        gpiod_put
+        hci_alloc_dev_priv
+        hci_cmd_sync
+        hci_cmd_sync_cancel
+        hci_free_dev
+        hci_recv_diag
+        hci_recv_frame
+        hci_register_dev
+        hci_unregister_dev
+        out_of_line_wait_on_bit_timeout
+        rfkill_pause_polling
+        rhashtable_init
+        skb_pull_data
+        skb_unlink
+        usb_alloc_urb
+        usb_anchor_urb
+        usb_autopm_get_interface
+        usb_autopm_put_interface
+        usb_bulk_msg
+        usb_control_msg
+        usb_deregister
+        usb_driver_claim_interface
+        usb_driver_release_interface
+        usb_find_common_endpoints
+        usb_free_urb
+        usb_get_dev
+        usb_get_from_anchor
+        usb_get_urb
+        usb_ifnum_to_if
+        usb_interrupt_msg
+        usb_kill_anchored_urbs
+        usb_kill_urb
+        usb_match_id
+        usb_put_dev
+        usb_queue_reset_device
+        usb_register_driver
+        usb_reset_device
+        usb_scuttle_anchored_urbs
+        usb_set_interface
+        usb_submit_urb
+        usb_unanchor_urb
+        wake_up_bit
+        EOF
+        
+        # 2. Append symbols to Google whitelist manifests across workspace
+        find . -type f \( -name "abi_gki_aarch64*" -o -name "*symbol_list*" \) | grep -vE "\.(bzl|stg|xml|json|html|sh|py)$" | while read -r list_file; do
+            echo "Updating symbol list: $list_file"
+            chmod u+w "$list_file" || true
+            echo "" >> "$list_file"
+            cat missing_symbols.txt >> "$list_file"
+        done
+
+    - name: Whitelist Custom Modules in Bazel
+      run: |
+        cd workspace
+        # Download buildozer to patch Bazel build manifests safely
+        wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/download/v7.1.2/buildozer-linux-amd64
+        chmod +x buildozer
+        
+        # Inject custom compiled modules (Atheros, Realtek, Ralink) into the shusky build targets
+        ./buildozer 'add module_outs drivers/bluetooth/btusb.ko drivers/net/wireless/ath/ath.ko drivers/net/wireless/ath/ath9k/ath9k_common.ko drivers/bluetooth/btintel.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/bluetooth/btrtl.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.ko drivers/net/wireless/ralink/rt2x00/rt2x00lib.ko drivers/net/wireless/ralink/rt2x00/rt2x00usb.ko drivers/net/wireless/ralink/rt2x00/rt2800lib.ko drivers/net/wireless/ralink/rt2x00/rt2800usb.ko' //private/devices/google/shusky:kernel
+
+    - name: Compile Pixel 8 Pro Kernel via Bazel
+      run: |
+        cd workspace
+        BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode" ./build_shusky.sh
+
+    - name: Package Kernel, Drivers, and KSU Modules
+      run: |
+        cd workspace
+        
+        # ==========================================
+        # PART 1: ANYKERNEL3 ZIP (BOOT & AVB PATCH)
+        # ==========================================
+        wget -qO anykernel.zip https://github.com/osm0sis/AnyKernel3/archive/master.zip
+        unzip -q anykernel.zip
+        mv AnyKernel3-master AnyKernel3
+        
+        # 64-bit Binaries for Tensor G3
+        wget -qO AnyKernel3/tools/busybox https://raw.githubusercontent.com/xerta555/Busybox-Binaries/master/busybox-arm64
+        chmod +x AnyKernel3/tools/busybox
+        wget -qO magisk.zip https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk
+        unzip -j magisk.zip lib/arm64-v8a/libmagiskboot.so
+        mv libmagiskboot.so AnyKernel3/tools/magiskboot
+        chmod +x AnyKernel3/tools/magiskboot
+        rm magisk.zip
+        
+        # Copy the raw compiled kernel (Image.lz4) instead of the full boot.img
+        cp out/shusky/dist/Image.lz4 AnyKernel3/
+        
+        # Build anykernel.sh dynamically matching version string
+        cat << EOF > AnyKernel3/anykernel.sh
+        properties() { '
+        kernel.string=Tweaker Kernel (${{ env.CUSTOM_KERNEL_VERSION }})
+        do.devicecheck=0
+        do.modules=0
+        do.systemless=1
+        do.cleanup=1
+        do.cleanuponabort=0
+        device.name1=husky
+        device.name2=shiba
+        device.name3=shusky
+        '; }
+        
+        block=boot;
+        is_slot_device=1;
+        ramdisk_compression=auto;
+        patch_vbmeta_flag=auto;
+
+        . tools/ak3-core.sh;
+        split_boot;
+        flash_boot;
+        EOF
+        
+        cd AnyKernel3
+        zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-AK3-Boot.zip * -x README.md
+        cd ..
+
+        # ==========================================
+        # PART 2: RAW GKI HARDWARE DRIVERS
+        # ==========================================
+        mkdir -p GKI-Raw-Drivers
+        cp out/shusky/dist/vendor_kernel_boot.img GKI-Raw-Drivers/
+        cp out/shusky/dist/vendor_dlkm.img GKI-Raw-Drivers/
+        cp out/shusky/dist/system_dlkm.img GKI-Raw-Drivers/ 2>/dev/null || true
+        
+        cd GKI-Raw-Drivers
+        zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Raw-Drivers.zip *
+        cd ..
+        
+        # ==========================================
+        # PART 3: PACKAGE KALI DRIVER MODULES & FIRMWARE (OPTIONAL FALLBACK)
+        # ==========================================
+        mkdir -p ksu-module/system/vendor/lib/modules
+        mkdir -p ksu-module/system/vendor/firmware
+        
+        cp out/shusky/dist/*.ko ksu-module/system/vendor/lib/modules/ 2>/dev/null || true
+        
+        # Pull essential Ralink / USB wireless firmware blobs directly into vendor firmware
+        wget -qO ksu-module/system/vendor/firmware/rt2870.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/rt2870.bin
+        
+        echo "id=nethunter-modules-shusky" > ksu-module/module.prop
+        echo "name=NetHunter Tensor G3 Modules & Firmware" >> ksu-module/module.prop
+        echo "version=${{ env.CUSTOM_KERNEL_VERSION }}" >> ksu-module/module.prop
+        echo "versionCode=1" >> ksu-module/module.prop
+        echo "author=stoag" >> ksu-module/module.prop
+        echo "description=Kali NetHunter Wi-Fi Injection Drivers and Firmware for Pixel 8 Pro (Atheros, Realtek, Ralink)." >> ksu-module/module.prop
+        
+        cd ksu-module
+        zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-NetHunter-Modules.zip *
+        cd ..
+
+    - name: Upload AK3 Boot Zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-AK3-Boot
+        path: workspace/Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-AK3-Boot.zip
+
+    - name: Upload Raw Drivers
+      uses: actions/upload-artifact@v4
+      with:
+        name: Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Raw-Drivers
+        path: workspace/Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Raw-Drivers.zip
+
+    - name: Upload NetHunter KSU Modules Zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: NetHunter-Modules-${{ env.CUSTOM_KERNEL_VERSION }}
+        path: workspace/Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-NetHunter-Modules.zip
