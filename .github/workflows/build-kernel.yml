@@ -63,13 +63,6 @@ jobs:
         # 1. Inject KernelSU Next inline source code
         curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
         
-        - name: Apply KernelSU Next Patches & Configs
-      run: |
-        cd workspace/aosp
-        
-        # 1. Inject KernelSU Next inline source code
-        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
-        
         # 2. Dynamically inject your version variable into the config
         echo "CONFIG_LOCALVERSION=\"${{ env.CUSTOM_KERNEL_VERSION }}\"" >> arch/arm64/configs/gki_defconfig
         
@@ -240,10 +233,10 @@ jobs:
         # Copy the raw compiled kernel (Image.lz4) instead of the full boot.img
         cp out/shusky/dist/Image.lz4 AnyKernel3/
         
-        # Build anykernel.sh safely matching the proven Sultan Kernel syntax
-        cat << 'EOF' > AnyKernel3/anykernel.sh
+        # Build anykernel.sh dynamically matching version string
+        cat << EOF > AnyKernel3/anykernel.sh
         properties() { '
-        kernel.string=Tweaker Kernel
+        kernel.string=Tweaker Kernel (${{ env.CUSTOM_KERNEL_VERSION }})
         do.devicecheck=0
         do.modules=0
         do.systemless=1
@@ -265,7 +258,7 @@ jobs:
         EOF
         
         cd AnyKernel3
-        zip -r9 ../Tweaker-Kernel-AK3-Boot.zip * -x README.md
+        zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-AK3-Boot.zip * -x README.md
         cd ..
 
         # ==========================================
@@ -277,7 +270,7 @@ jobs:
         cp out/shusky/dist/system_dlkm.img GKI-Raw-Drivers/ 2>/dev/null || true
         
         cd GKI-Raw-Drivers
-        zip -r9 ../Tweaker-Raw-Drivers.zip *
+        zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Raw-Drivers.zip *
         cd ..
         
         # ==========================================
@@ -288,29 +281,29 @@ jobs:
         
         echo "id=nethunter-modules-shusky" > ksu-module/module.prop
         echo "name=NetHunter Tensor G3 Modules" >> ksu-module/module.prop
-        echo "version=v1.0" >> ksu-module/module.prop
+        echo "version=${{ env.CUSTOM_KERNEL_VERSION }}" >> ksu-module/module.prop
         echo "versionCode=1" >> ksu-module/module.prop
         echo "author=stoag" >> ksu-module/module.prop
         echo "description=Kali NetHunter Wi-Fi Injection and Bluetooth Drivers for Pixel 8 Pro." >> ksu-module/module.prop
         
         cd ksu-module
-        zip -r9 ../NetHunter-Modules-KSU.zip *
+        zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-NetHunter-Modules.zip *
         cd ..
 
     - name: Upload AK3 Boot Zip
       uses: actions/upload-artifact@v4
       with:
-        name: Tweaker-Kernel-AK3-Boot
-        path: workspace/Tweaker-Kernel-AK3-Boot.zip
+        name: Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-AK3-Boot
+        path: workspace/Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-AK3-Boot.zip
 
     - name: Upload Raw Drivers
       uses: actions/upload-artifact@v4
       with:
-        name: Tweaker-Raw-Drivers
-        path: workspace/Tweaker-Raw-Drivers.zip
+        name: Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Raw-Drivers
+        path: workspace/Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Raw-Drivers.zip
 
     - name: Upload NetHunter KSU Modules Zip
       uses: actions/upload-artifact@v4
       with:
-        name: NetHunter-KSU-Modules
-        path: workspace/NetHunter-Modules-KSU.zip
+        name: Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-NetHunter-Modules
+        path: workspace/Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-NetHunter-Modules.zip
