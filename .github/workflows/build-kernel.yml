@@ -51,7 +51,7 @@ jobs:
         # Sync required repositories to conserve runner storage
         repo sync -c -j$(nproc) --no-tags --no-clone-bundle
       
-      - name: Apply Kali NetHunter Drivers & Patches
+    - name: Apply Kali NetHunter Drivers & Patches
       run: |
         cd workspace/aosp # Main GKI Linux kernel tree
         
