@@ -50,37 +50,14 @@ jobs:
         
         # Sync required repositories to conserve runner storage
         repo sync -c -j$(nproc) --no-tags --no-clone-bundle
-
-    - name: Apply Kali NetHunter Drivers & Patches
+      
+      - name: Apply Kali NetHunter Drivers & Patches
       run: |
         cd workspace/aosp # Main GKI Linux kernel tree
         
-        # 1. Download and apply Kali mac80211 Wi-Fi injection patch safely
-        curl -L -o injection.patch https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0001-mac80211-injection.patch
-        
-        # Verify it's a real patch file and not an HTML error page
-        if grep -q "<html" injection.patch; then
-          echo "ERROR: Downloaded file is HTML, not a patch! Check URL."
-          exit 1
-        fi
-        
-        patch -p1 < injection.patch || true
-        rm injection.patch
-
-        # 2. Mark MAC80211_LEDS as broken in Kconfig to prevent missing LED symbol panics
+        # Mark MAC80211_LEDS as broken in Kconfig to prevent missing LED symbol panics
         find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +
         sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig
-
-        # 3. Download and apply HID gadget patch (USB Arsenal / DuckHunter) safely
-        curl -L -o hid.patch https://gitlab.com/kalilinux/nethunter/build-scripts/kali-nethunter-project/-/raw/master/patches/6.1/0002-hid-gadget.patch
-        
-        if grep -q "<html" hid.patch; then
-          echo "ERROR: Downloaded file is HTML, not a patch! Check URL."
-          exit 1
-        fi
-        
-        patch -p1 < hid.patch || true
-        rm hid.patch
 
     - name: Apply KernelSU Next Patches & Configs
       run: |
