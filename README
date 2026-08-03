@@ -28,35 +28,4 @@ This project integrates Kali NetHunter wireless packet injection drivers, USB Ar
 ### Prerequisites
 * Unlocked bootloader.
 * Pixel 8 Pro running Android 16.
-* [KernelFlasher v1.0.0-alpha20+allow-errors.2](https://github.com/capntrips/KernelFlasher/releases/download/v1.0.0-alpha21%2Ballow-errors/KernelFlasher-v1.0.0-alpha20+allow-errors.2.apk) or newer installed on device.
-
-### 1. Flash Partition Images
-1. Download `Tweakers-Paradise-GKI-Pixel8Pro.zip` from the latest GitHub Actions artifact or release.
-2. Extract the `.img` files to your phone's internal storage.
-3. Open **Kernel Flasher** and select **Flash Image** for each corresponding partition:
-   - `boot` → `boot.img`
-   - `vendor_kernel_boot` → `vendor_kernel_boot.img`
-   - `vendor_dlkm` → `vendor_dlkm.img`
-   - `system_dlkm` → `system_dlkm.img` *(if present)*
-4. Reboot the device.
-
-### 2. Install NetHunter Driver Modules
-1. Download `NetHunter-Modules-KSU.zip`.
-2. Open the **KernelSU Next Manager** app.
-3. Navigate to **Modules** → **Install**, select `NetHunter-Modules-KSU.zip`, and reboot.
-
----
-
-## Usage: External Wi-Fi Adapters
-
-To prevent channel or resource conflicts with internal wireless chips, manually load the driver for your connected USB OTG wireless adapter via root terminal:
-
-```bash
-# Atheros AR9271 / AWUS036NHA
-insmod /vendor/lib/modules/ath9k_htc.ko
-
-# Realtek RTL8187
-insmod /vendor/lib/modules/rtl8187.ko
-
-# Ralink / MediaTek RT2800USB
-insmod /vendor/lib/modules/rt2800usb.ko
+* KernelFlasher
