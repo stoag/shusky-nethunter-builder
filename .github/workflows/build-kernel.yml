@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      CUSTOM_KERNEL_VERSION: "twk.v1.00"
+      CUSTOM_KERNEL_VERSION: "twk.v1.01"
       
     steps:
     - name: Free Runner Disk Space
