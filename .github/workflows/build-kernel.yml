@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      CUSTOM_KERNEL_VERSION: "twk.v1.01"
+      CUSTOM_KERNEL_VERSION: "twk.v1.00"
       
     steps:
     - name: Free Runner Disk Space
@@ -214,8 +214,8 @@ jobs:
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/download/v7.1.2/buildozer-linux-amd64
         chmod +x buildozer
         
-        # Inject custom compiled modules (Atheros, Realtek, Ralink) into the shusky build targets
-        ./buildozer 'add module_outs drivers/bluetooth/btusb.ko drivers/net/wireless/ath/ath.ko drivers/net/wireless/ath/ath9k/ath9k_common.ko drivers/bluetooth/btintel.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/bluetooth/btrtl.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.ko drivers/net/wireless/ralink/rt2x00/rt2x00lib.ko drivers/net/wireless/ralink/rt2x00/rt2x00usb.ko drivers/net/wireless/ralink/rt2x00/rt2800lib.ko drivers/net/wireless/ralink/rt2x00/rt2800usb.ko' //private/devices/google/shusky:kernel
+        # Inject custom compiled modules with correct paths into the shusky build targets
+        ./buildozer 'add module_outs drivers/bluetooth/btusb.ko drivers/net/wireless/ath/ath.ko drivers/net/wireless/ath/ath9k/ath9k_common.ko drivers/bluetooth/btintel.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/bluetooth/btrtl.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.ko drivers/net/wireless/rt2x00/rt2x00lib.ko drivers/net/wireless/rt2x00/rt2x00usb.ko drivers/net/wireless/rt2x00/rt2800lib.ko drivers/net/wireless/rt2x00/rt2800usb.ko' //private/devices/google/shusky:kernel
 
     - name: Compile Pixel 8 Pro Kernel via Bazel
       run: |
