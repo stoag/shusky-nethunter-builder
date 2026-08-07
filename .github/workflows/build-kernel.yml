@@ -121,6 +121,7 @@ jobs:
         CONFIG_RT2X00USB=m
         CONFIG_RT2800LIB=m
         CONFIG_RT2800USB=m
+        # CONFIG_RT2X00_LIB_LEDS is not set
         
         # Bluetooth & VPN Support
         CONFIG_BT_HCIBTUSB=m
@@ -170,6 +171,7 @@ jobs:
         btbcm_set_bdaddr
         btbcm_setup_apple
         btbcm_setup_patchram
+        clk_get_sys
         device_release_driver
         gpiod_get_optional
         gpiod_put
@@ -181,6 +183,8 @@ jobs:
         hci_recv_frame
         hci_register_dev
         hci_unregister_dev
+        led_classdev_resume
+        led_classdev_suspend
         out_of_line_wait_on_bit_timeout
         rfkill_pause_polling
         rhashtable_init
