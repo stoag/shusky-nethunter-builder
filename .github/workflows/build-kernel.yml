@@ -166,6 +166,8 @@ jobs:
         hci_recv_frame
         hci_register_dev
         hci_unregister_dev
+        led_trigger_blink
+        led_trigger_blink_oneshot
         out_of_line_wait_on_bit_timeout
         rfkill_pause_polling
         rhashtable_init
