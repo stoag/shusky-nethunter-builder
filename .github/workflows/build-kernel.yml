@@ -59,6 +59,22 @@ jobs:
         find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +
         sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig
 
+    - name: Inject RTL8812AU Out-of-Tree Driver
+      run: |
+        cd workspace/aosp
+        
+        # 1. Clone the Aircrack-ng driver directly into the Realtek wireless tree
+        git clone https://github.com/aircrack-ng/rtl8812au.git drivers/net/wireless/realtek/rtl8812au
+        
+        # 2. Hook it into the upstream Kbuild system so the kernel compiles it
+        echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
+        
+        # 3. Suppress strict Clang warnings to prevent Google's compiler from failing the out-of-tree build
+        sed -i 's/-Werror//g' drivers/net/wireless/realtek/rtl8812au/Makefile
+        echo "ccflags-y += -Wno-error" >> drivers/net/wireless/realtek/rtl8812au/Makefile
+        echo "ccflags-y += -Wno-implicit-function-declaration" >> drivers/net/wireless/realtek/rtl8812au/Makefile
+        echo "ccflags-y += -Wno-incompatible-pointer-types" >> drivers/net/wireless/realtek/rtl8812au/Makefile
+
     - name: Apply KernelSU Next Patches & Configs
       run: |
         cd workspace/aosp
@@ -101,10 +117,10 @@ jobs:
         CONFIG_RTL8XXXU=m
         CONFIG_WLAN_VENDOR_RALINK=y
         CONFIG_RT2X00=m
-        CONFIG_RT2X00_LIB=m
-        CONFIG_RT2X00_LIB_USB=m
-        CONFIG_RT2800_LIB=m
-        CONFIG_RT2800_USB=m
+        CONFIG_RT2X00LIB=m
+        CONFIG_RT2X00USB=m
+        CONFIG_RT2800LIB=m
+        CONFIG_RT2800USB=m
         
         # Bluetooth & VPN Support
         CONFIG_BT_HCIBTUSB=m
@@ -215,8 +231,8 @@ jobs:
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/download/v7.1.2/buildozer-linux-amd64
         chmod +x buildozer
         
-        # Inject custom compiled modules (Atheros, Realtek, Ralink) into the shusky build targets
-        ./buildozer 'add module_outs drivers/bluetooth/btusb.ko drivers/net/wireless/ath/ath.ko drivers/net/wireless/ath/ath9k/ath9k_common.ko drivers/bluetooth/btintel.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/bluetooth/btrtl.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.ko drivers/net/wireless/ralink/rt2x00/rt2x00lib.ko drivers/net/wireless/ralink/rt2x00/rt2x00usb.ko drivers/net/wireless/ralink/rt2x00/rt2800lib.ko drivers/net/wireless/ralink/rt2x00/rt2800usb.ko' //private/devices/google/shusky:kernel
+        # Inject custom compiled modules into the shusky build targets (including RTL8812AU)
+        ./buildozer 'add module_outs drivers/bluetooth/btusb.ko drivers/net/wireless/ath/ath.ko drivers/net/wireless/ath/ath9k/ath9k_common.ko drivers/bluetooth/btintel.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/bluetooth/btrtl.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.ko drivers/net/wireless/ralink/rt2x00/rt2x00lib.ko drivers/net/wireless/ralink/rt2x00/rt2x00usb.ko drivers/net/wireless/ralink/rt2x00/rt2800lib.ko drivers/net/wireless/ralink/rt2x00/rt2800usb.ko drivers/net/wireless/realtek/rtl8812au/88XXau.ko' //private/devices/google/shusky:kernel
 
     - name: Compile Pixel 8 Pro Kernel via Bazel
       run: |
