@@ -59,14 +59,14 @@ jobs:
         find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +
         sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig
 
-    - name: Inject Android-Optimized RTL8812AU Driver
+    - name: Inject Android-Optimized RTL8812AU Subdirectory
       run: |
         cd workspace/aosp
         
         # 1. Unlock the upstream Realtek Makefile so we have permission to edit it
         chmod u+w drivers/net/wireless/realtek/Makefile
         
-        # 2. Clone the repository into a temporary staging directory
+        # 2. Clone the monorepo into a temporary staging directory
         git clone https://github.com/ShorterKing/RTL88x2BU-Android-Drivers_rtl8812au.git /tmp/rtl_repo
         
         # 3. Extract ONLY the rtl8812au subdirectory into our kernel's realtek tree
@@ -77,6 +77,9 @@ jobs:
         
         # 5. Hook the specific subdirectory natively into the upstream Kbuild system
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
+        
+        # 6. FORCE compilation! Android Kbuild skips the 'else' block, so we bypass the missing Kconfig variable.
+        sed -i 's/obj-\$(CONFIG_88XXAU)/obj-m/g' drivers/net/wireless/realtek/rtl8812au/Makefile
 
     - name: Apply KernelSU Next Patches & Configs
       run: |
