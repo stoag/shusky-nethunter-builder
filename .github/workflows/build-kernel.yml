@@ -78,9 +78,13 @@ jobs:
         # 5. Hook the specific subdirectory natively into the upstream Kbuild system
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
         
-        # 6. FORCE compilation and use EXTRA_CFLAGS so subdirectories inherit the warning suppressions
+        # 6. FORCE compilation and use EXTRA_CFLAGS to inherit warning suppressions
         sed -i 's/obj-\$(CONFIG_88XXAU)/obj-m/g' drivers/net/wireless/realtek/rtl8812au/Makefile
         echo "EXTRA_CFLAGS += -Wno-uninitialized -Wno-attribute-warning" >> drivers/net/wireless/realtek/rtl8812au/Makefile
+        
+        # 7. Patch API signature mismatches for Linux 6.1 (Android 16)
+        sed -i 's/cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false);/cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false, 0);/g' drivers/net/wireless/realtek/rtl8812au/os_dep/linux/ioctl_cfg80211.c
+        sed -i 's/cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0);/cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0, 0);/g' drivers/net/wireless/realtek/rtl8812au/os_dep/linux/ioctl_cfg80211.c
 
     - name: Apply KernelSU Next Patches & Configs
       run: |
