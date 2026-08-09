@@ -78,10 +78,10 @@ jobs:
         # 5. Hook the specific subdirectory natively into the upstream Kbuild system
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
         
-        # 6. FORCE compilation and suppress strict Clang warnings (uninitialized + fortify attribute warnings)
+        # 6. FORCE compilation and use EXTRA_CFLAGS so subdirectories inherit the warning suppressions
         sed -i 's/obj-\$(CONFIG_88XXAU)/obj-m/g' drivers/net/wireless/realtek/rtl8812au/Makefile
-        echo "ccflags-y += -Wno-uninitialized -Wno-error=attribute-warning" >> drivers/net/wireless/realtek/rtl8812au/Makefile
-    
+        echo "EXTRA_CFLAGS += -Wno-uninitialized -Wno-attribute-warning" >> drivers/net/wireless/realtek/rtl8812au/Makefile
+
     - name: Apply KernelSU Next Patches & Configs
       run: |
         cd workspace/aosp
