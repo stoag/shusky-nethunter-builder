@@ -82,9 +82,33 @@ jobs:
         sed -i 's/obj-\$(CONFIG_88XXAU)/obj-m/g' drivers/net/wireless/realtek/rtl8812au/Makefile
         echo "EXTRA_CFLAGS += -Wno-uninitialized -Wno-attribute-warning" >> drivers/net/wireless/realtek/rtl8812au/Makefile
         
-        # 7. Patch API signature mismatches for Linux 6.1 (Android 16)
-        sed -i 's/cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false);/cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false, 0);/g' drivers/net/wireless/realtek/rtl8812au/os_dep/linux/ioctl_cfg80211.c
-        sed -i 's/cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0);/cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0, 0);/g' drivers/net/wireless/realtek/rtl8812au/os_dep/linux/ioctl_cfg80211.c
+        # 7. Use a deterministic Python script to safely fix Linux 6.1 API mismatches without text corruption
+        python3 -c '
+        path = "drivers/net/wireless/realtek/rtl8812au/os_dep/linux/ioctl_cfg80211.c"
+        with open(path, "r") as f:
+            code = f.read()
+
+        target1 = "cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false);"
+        replacement1 = "cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false, 0);"
+
+        target2 = "cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0);"
+        replacement2 = "cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0, 0);"
+
+        if target1 in code:
+            code = code.replace(target1, replacement1)
+            print("Successfully patched ch_switch_started_notify")
+        else:
+            print("Warning: target1 not found")
+
+        if target2 in code:
+            code = code.replace(target2, replacement2)
+            print("Successfully patched ch_switch_notify")
+        else:
+            print("Warning: target2 not found")
+
+        with open(path, "w") as f:
+            f.write(code)
+        '
 
     - name: Apply KernelSU Next Patches & Configs
       run: |
