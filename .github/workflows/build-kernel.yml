@@ -51,19 +51,35 @@ jobs:
         # Sync required repositories to conserve runner storage
         repo sync -c -j$(nproc) --no-tags --no-clone-bundle
 
+    - name: Apply Kali NetHunter Subsystem Overrides
+      run: |
+        cd workspace/aosp # Main GKI Linux kernel tree
+        
+        # Break MAC80211 LEDs natively in Kconfig to prevent core linker panics
+        find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +
+        sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig
+
     - name: Inject Android-Optimized RTL88x2BU Driver
       run: |
         cd workspace/aosp
         
-        # 1. Clone the Android-patched driver directly into the Realtek wireless tree
-        git clone https://github.com/ShorterKing/RTL88x2BU-Android-Drivers_rtl8812au.git drivers/net/wireless/realtek/rtl8812au
+        # 1. Unlock the upstream Realtek Makefile so we have permission to edit it
+        chmod u+w drivers/net/wireless/realtek/Makefile
         
-        # 2. Hook it into the upstream Kbuild system
-        echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
+        # 2. Clone the Android-optimized driver directly into the Realtek wireless tree
+        git clone https://github.com/ShorterKing/RTL88x2BU-Android-Drivers_rtl8812au.git drivers/net/wireless/realtek/rtl88x2bu
         
-        # 3. Add standard compiler flags for out-of-tree Clang compilation (Safety measure)
-        sed -i 's/-Werror//g' drivers/net/wireless/realtek/rtl8812au/Makefile
-        echo "ccflags-y += -Wno-error -Wno-implicit-function-declaration -Wno-incompatible-pointer-types" >> drivers/net/wireless/realtek/rtl8812au/Makefile
+        # 3. Smart-Folder Fix: If the dev nested the Makefile, move contents up to the root folder dynamically
+        if [ ! -f "drivers/net/wireless/realtek/rtl88x2bu/Makefile" ]; then
+          echo "Makefile not found at root, moving nested files up..."
+          INNER_DIR=$(find drivers/net/wireless/realtek/rtl88x2bu -mindepth 1 -maxdepth 2 -name "Makefile" -exec dirname {} \;)
+          if [ -n "$INNER_DIR" ]; then
+            mv "$INNER_DIR"/* drivers/net/wireless/realtek/rtl88x2bu/
+          fi
+        fi
+        
+        # 4. Hook it natively into the upstream Kbuild system
+        echo 'obj-m += rtl88x2bu/' >> drivers/net/wireless/realtek/Makefile
 
     - name: Apply KernelSU Next Patches & Configs
       run: |
@@ -140,7 +156,7 @@ jobs:
       run: |
         cd workspace
         
-        # Master list of required network & driver symbols
+        # Master list of required network & driver symbols (Including LED blink fixes)
         cat << 'EOF' > missing_symbols.txt
         __dev_kfree_skb_irq
         __hci_cmd_sync
@@ -217,8 +233,8 @@ jobs:
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/download/v7.1.2/buildozer-linux-amd64
         chmod +x buildozer
         
-        # Inject Atheros, Realtek, and the new RTL88x2BU module into shusky build targets
-        ./buildozer 'add module_outs drivers/bluetooth/btusb.ko drivers/net/wireless/ath/ath.ko drivers/net/wireless/ath/ath9k/ath9k_common.ko drivers/bluetooth/btintel.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/bluetooth/btrtl.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.ko drivers/net/wireless/realtek/rtl8812au/88x2bu.ko' //private/devices/google/shusky:kernel
+        # Inject Atheros, Realtek, and Android-Optimized RTL88x2BU modules into shusky build targets
+        ./buildozer 'add module_outs drivers/bluetooth/btusb.ko drivers/net/wireless/ath/ath.ko drivers/net/wireless/ath/ath9k/ath9k_common.ko drivers/bluetooth/btintel.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/bluetooth/btrtl.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.ko drivers/net/wireless/realtek/rtl88x2bu/88x2bu.ko' //private/devices/google/shusky:kernel
 
     - name: Compile Pixel 8 Pro Kernel via Bazel
       run: |
