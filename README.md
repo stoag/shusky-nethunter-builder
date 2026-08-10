@@ -1,5 +1,6 @@
  · · · Tweaker Kernel · · · 
 Made for Pixel 8 Pro (shusky)
+
 It should work on both the Pixel 8 (shiba) and Pixel 8 Pro (husky) but I've only tested on the 8 Pro.
 
 This kernel integrates NetHunter & KernelSU next with native support for wireless packet
