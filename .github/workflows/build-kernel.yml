@@ -44,14 +44,16 @@ jobs:
 
     - name: Initialize & Sync Google Kernel Source
       run: |
-        mkdir workspace && cd workspace
+        mkdir -p workspace
+        cd workspace
+        
         # Target the official Android 16 / Tensor G3 (shusky) branch
         repo init -u https://android.googlesource.com/kernel/manifest \
             -b android-gs-shusky-6.1-android16 --depth=1
         
         # Sync required repositories to conserve runner storage
         repo sync -c -j$(nproc) --no-tags --no-clone-bundle
-
+    
     - name: Apply Kali NetHunter Subsystem Overrides
       run: |
         cd workspace/aosp
