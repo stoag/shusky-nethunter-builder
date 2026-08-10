@@ -1,27 +1,36 @@
-# Pixel 8 Pro (shusky) - NetHunter + KernelSU Next Automated GKI Pipeline
+ · · · Tweaker Kernel · · · 
+Made for Pixel 8 Pro (shusky)
+It should work on both the Pixel 8 (shiba) and Pixel 8 Pro (husky) but I've only tested on the 8 Pro.
 
-An automated GitHub Actions CI/CD pipeline built to compile a modern, production-grade Linux 6.1 GKI kernel for the Google Pixel 8 Pro (`shusky`). 
+This kernel integrates NetHunter & KernelSU next with native support for wireless packet
+injection drivers, USB Arsenal and ConfigFS into the official Google AOSP kernel sources via Bazel.
 
-This project integrates Kali NetHunter wireless packet injection drivers, USB Arsenal ConfigFS gadgets, and inline KernelSU Next directly into official Google AOSP kernel sources via Bazel.
-
----
 
 ## Key Features
 
-- **Automated Cloud Compilation:** Syncs official Google `android-gs-shusky-6.1-android16` source code and builds the kernel in isolated runner environments using Bazel (`build_shusky.sh`).
-- **Inline KernelSU Next (`CONFIG_KSU=y`):** Core root hooks are compiled directly into the C kernel binary, keeping the `init_boot` ramdisk 100% factory stock for stealth and stability.
-- **Wireless Injection (mac80211):** Patched `mac80211` subsystem allowing frame injection and monitor mode on external USB Wi-Fi adapters.
-- **USB Arsenal & ConfigFS:** Native support for USB HID Gadget attacks (DuckHunter), Mass Storage emulation, ECM, and ACM serial interfaces.
-- **Out-of-Tree Driver Modules:** Pre-compiles and packages kernel modules for Atheros (`ath9k_htc`), Realtek (`rtl8187`), MediaTek/Ralink (`rt2800usb`), and Bluetooth USB dongles (`btusb`).
-- **Filesystem & Network Optimizations:** BBR TCP congestion control, WireGuard VPN support, TTL/HL override capabilities, and NTFS3/exFAT filesystem support.
+- **Automated Cloud Compilation:** Syncs official Google `android-gs-shusky-6.1-android16` source code and 
+- **builds the kernel in isolated runner environments using Bazel (`build_shusky.sh`).
+- **Inline KernelSU Next (`CONFIG_KSU=y`):** Core root hooks are compiled directly into the C kernel binary,
+- **keeping the `init_boot` ramdisk 100% factory stock for stealth and stability.
+- **Wireless Injection (mac80211):** Patched `mac80211` subsystem allowing frame injection and 
+- **monitor mode on external USB Wi-Fi adapters.
+- **USB Arsenal & ConfigFS:** Native support for USB HID Gadget attacks (DuckHunter),
+- **Mass Storage emulation, ECM, and ACM serial interfaces.
+- **Out-of-Tree Driver Modules:** Pre-compiles and packages kernel modules for Atheros (`ath9k_htc`), 
+- **Realtek (`rtl8187`), and Bluetooth USB dongles (`btusb`).
+- **Filesystem & Network Optimizations:** BBR TCP congestion control, WireGuard VPN support, 
+- **TTL/HL override capabilities, and NTFS3/exFAT filesystem support.
 
----
 
-## Disclaimer
+ · · · Disclaimer · · · 
+ 
+ Use at your own risk. Flashing custom kernels carries inherent risks of bootloops or soft-bricks if not done properly. 
+ This kernel was built for and tested on CP1A.260505.505, which is the May security patch on Android 16. 
+ DO NOT DOWNGRADE YOUR DEVICE IF YOU FLASH THIS BUILD. It can cause the hard brick that I'm sure you've read about in
+ other threads on XDA. 
 
-> **Use at your own risk.** Flashing custom kernels carries inherent risks of bootloops or soft-bricks if instructions are not followed carefully. Target device: **Google Pixel 8 Pro (`shusky`)** running **Android 16**.
+ · · · Flashing Instructions · · · 
 
----
 
 ## Flashing Instructions
 
