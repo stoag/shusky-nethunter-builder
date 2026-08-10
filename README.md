@@ -55,7 +55,7 @@
 
 ## Credit should go to [ShorterKing](https://github.com/ShorterKing) for his Android optimized Realtek drivers!
 
-Woot!!
+Woot!! twk.v1.02!
 Successfully added Realtek rtl8812au drivers for my AWUS036ACH usb wireless adapter. 
 :D
 
