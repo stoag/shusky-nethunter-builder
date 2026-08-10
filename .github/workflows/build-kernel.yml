@@ -8,7 +8,8 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      CUSTOM_KERNEL_VERSION: "twk.v1.01"
+      # Release Version
+      CUSTOM_KERNEL_VERSION: "twk.v1.02"
       
     steps:
     - name: Free Runner Disk Space
@@ -53,7 +54,7 @@ jobs:
 
     - name: Apply Kali NetHunter Subsystem Overrides
       run: |
-        cd workspace/aosp # Main GKI Linux kernel tree
+        cd workspace/aosp
         
         # Break MAC80211 LEDs natively in Kconfig to prevent core linker panics
         find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +
@@ -63,7 +64,7 @@ jobs:
       run: |
         cd workspace/aosp
         
-        # 1. Unlock the upstream Realtek Makefile so we have permission to edit it
+        # 1. Unlock the upstream Realtek Makefile
         chmod u+w drivers/net/wireless/realtek/Makefile
         
         # 2. Clone the repository into a temporary staging directory
@@ -71,22 +72,19 @@ jobs:
         
         # 3. Extract ONLY the rtl8812au subdirectory into our kernel's realtek tree
         mv /tmp/rtl_repo/rtl8812au drivers/net/wireless/realtek/rtl8812au
-        
-        # 4. Clean up the temporary repo
         rm -rf /tmp/rtl_repo
         
-        # 5. Hook the specific subdirectory natively into the upstream Kbuild system
+        # 4. Hook the specific subdirectory natively into the upstream Kbuild system
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
-        
-        # 6. FORCE compilation and use EXTRA_CFLAGS to inherit warning suppressions
         sed -i 's/obj-\$(CONFIG_88XXAU)/obj-m/g' drivers/net/wireless/realtek/rtl8812au/Makefile
+        
+        # 5. FORCE compilation and use EXTRA_CFLAGS to inherit warning suppressions
         echo "EXTRA_CFLAGS += -Wno-uninitialized -Wno-attribute-warning -Wno-error -Wno-cast-function-type" >> drivers/net/wireless/realtek/rtl8812au/Makefile
         
-        # ---> THE PREBUILT VMLINUX BYPASS <---
-        # Rename the banned functions in the driver to our dummy functions at compile time
+        # 6. GKI PREBUILT BYPASS: Stub restricted File I/O functions using compile-time macros
         echo "EXTRA_CFLAGS += -Dfilp_open=filp_open_dummy -Dkernel_read=kernel_read_dummy -Dkernel_write=kernel_write_dummy" >> drivers/net/wireless/realtek/rtl8812au/Makefile
         
-        # Inject the dummy functions directly into the driver's OS dependency file
+        # Inject the dummy fallback functions directly into the driver's OS dependency file
         OSDEP_FILE=$(find drivers/net/wireless/realtek/rtl8812au -name "osdep_service.c" | head -n 1)
         cat << 'EOF' >> "$OSDEP_FILE"
         
@@ -105,7 +103,7 @@ jobs:
         }
         EOF
         
-        # 7. Use a deterministic Python script to safely fix Linux 6.1 API mismatches without text corruption
+        # 7. Apply deterministic Python patch for Linux 6.1 cfg80211 API changes
         python3 -c '
         path = "drivers/net/wireless/realtek/rtl8812au/os_dep/linux/ioctl_cfg80211.c"
         with open(path, "r") as f:
@@ -119,15 +117,8 @@ jobs:
 
         if target1 in code:
             code = code.replace(target1, replacement1)
-            print("Successfully patched ch_switch_started_notify")
-        else:
-            print("Warning: target1 not found")
-
         if target2 in code:
             code = code.replace(target2, replacement2)
-            print("Successfully patched ch_switch_notify")
-        else:
-            print("Warning: target2 not found")
 
         with open(path, "w") as f:
             f.write(code)
@@ -143,7 +134,7 @@ jobs:
         # 2. Dynamically inject version variable (Safely quoted to prevent EOF errors)
         echo 'CONFIG_LOCALVERSION="${{ env.CUSTOM_KERNEL_VERSION }}"' >> arch/arm64/configs/gki_defconfig
         
-        # 3. Append configs cleanly (Ralink disabled natively to prevent symbol panics)
+        # 3. Append configs cleanly (Ralink disabled natively to prevent legacy symbol panics)
         cat << 'EOF' >> arch/arm64/configs/gki_defconfig
         # Inline KernelSU Next
         CONFIG_KSU=y
@@ -208,7 +199,8 @@ jobs:
       run: |
         cd workspace
         
-        # Master list of required network & driver symbols (File I/O removed, now handled natively)
+        # Master list of required network & driver symbols
+        # (Note: File I/O symbols were intentionally omitted and handled via dummy macros for GKI bypass)
         cat << 'EOF' > missing_symbols.txt
         __dev_kfree_skb_irq
         __hci_cmd_sync
@@ -289,17 +281,16 @@ jobs:
             echo "" >> "$list_file"
             cat missing_symbols.txt >> "$list_file"
         done
-        
+
     - name: Whitelist Custom Modules in Bazel
       run: |
         cd workspace
         
-        # Use curl with retries to prevent random GitHub Actions network drops (Exit Code 4)
+        # Use curl with retries to prevent random GitHub Actions network drops
         curl -sSL --retry 3 -o buildozer https://github.com/bazelbuild/buildtools/releases/download/v7.1.2/buildozer-linux-amd64
         chmod +x buildozer
         
         # Inject Atheros, Realtek, and RTL8812AU modules into shusky build targets
-        # Added '|| true' so the pipeline doesn't crash if modules are already listed
         ./buildozer 'add module_outs drivers/bluetooth/btusb.ko drivers/net/wireless/ath/ath.ko drivers/net/wireless/ath/ath9k/ath9k_common.ko drivers/bluetooth/btintel.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/bluetooth/btrtl.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.ko drivers/net/wireless/realtek/rtl8812au/88XXau.ko' //private/devices/google/shusky:kernel || true
         
     - name: Compile Pixel 8 Pro Kernel via Bazel
