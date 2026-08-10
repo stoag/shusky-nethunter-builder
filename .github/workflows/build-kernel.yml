@@ -263,7 +263,14 @@ jobs:
             echo "" >> "$list_file"
             cat missing_symbols.txt >> "$list_file"
         done
-
+        
+        # FORCE CORE KERNEL TO RE-EXPORT SYMBOLS TO MODULES (Fixes 'modpost undefined' for all Realtek drivers)
+        echo "Patching C source files to re-export I/O symbols..."
+        chmod u+w aosp/fs/open.c aosp/fs/read_write.c || true
+        grep -q "EXPORT_SYMBOL(filp_open);" aosp/fs/open.c || echo "EXPORT_SYMBOL(filp_open);" >> aosp/fs/open.c
+        grep -q "EXPORT_SYMBOL(kernel_read);" aosp/fs/read_write.c || echo "EXPORT_SYMBOL(kernel_read);" >> aosp/fs/read_write.c
+        grep -q "EXPORT_SYMBOL(kernel_write);" aosp/fs/read_write.c || echo "EXPORT_SYMBOL(kernel_write);" >> aosp/fs/read_write.c
+    
     - name: Whitelist Custom Modules in Bazel
       run: |
         cd workspace
