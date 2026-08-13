@@ -4,7 +4,8 @@
  It should work on both the Pixel 8 (shiba) and Pixel 8 Pro (husky) but I've only tested on the 8 Pro.
  
  This kernel integrates NetHunter & KernelSU Next with native support for wireless packet injection
- drivers, USB Arsenal and ConfigFS into the official Google AOSP kernel sources via Bazel.
+ drivers, USB Arsenal
+ and ConfigFS into the official Google AOSP kernel sources via Bazel.
 
 
  · · · Key Features · · · 
