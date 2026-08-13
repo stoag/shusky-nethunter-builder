@@ -46,14 +46,21 @@
 * Root access (to use Kernel Flasher / FKM) or a custom recovery.
 
 ### Installation
-1. Download the `Tweaker-Kernel-twk.v1.02-AK3-Boot.zip` file from the repository Releases / Actions tab.
-2. Open **Kernel Flasher** (or Franco Kernel Manager).
-3. Select "Flash AK3 zip" and choose the downloaded file.
-4. Let the script flash the kernel and inject the NetHunter modules.
-5. Reboot and enjoy!
-
+1. Download the latest release extractME zip file.
+2. Extract the contents to a location on your phones storage that you can easily find.
+3. Open **Kernel Flasher**.
+4. Tap **Flash AK3** and select the `Tweaker-Kernel-twk.v1.02-AK3-Boot.zip` file.
+5. DO NOT REBOOT! Once that finishes, go back to the main menu of Kernel Flasher and tap **Flash Image**.
+6. Flash the extracted `.img` files to their corresponding partitions:
+   - Flash `vendor_dlkm.img` -> to the `vendor_dlkm` partition
+   - Flash `system_dlkm.img` -> to the `system_dlkm` partition
+   - Flash `vendor_kernel_boot.img` -> to the `vendor_kernel_boot` partition
+7. Reboot and Enjoy! :D
 
 ## Credit should go to [ShorterKing](https://github.com/ShorterKing) for his Android optimized Realtek drivers!
+
+
+
 
 Woot!! twk.v1.02!
 Successfully added Realtek rtl8812au drivers for my AWUS036ACH usb wireless adapter. 
