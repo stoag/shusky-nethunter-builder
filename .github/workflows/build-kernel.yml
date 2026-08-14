@@ -123,4 +123,255 @@ jobs:
             code = code.replace(target2, replacement2)
 
         with open(path, "w") as f:
-            f
+            f.write(code)
+        '
+
+    - name: Apply KernelSU Next Patches & Configs
+      run: |
+        cd workspace/aosp
+        
+        # 1. Inject KernelSU Next inline source code
+        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
+        
+        # 2. Dynamically inject version variable (Safely quoted to prevent EOF errors)
+        echo 'CONFIG_LOCALVERSION="${{ env.CUSTOM_KERNEL_VERSION }}"' >> arch/arm64/configs/gki_defconfig
+        
+        # 3. Append configs cleanly (Ralink disabled natively to prevent legacy symbol panics)
+        cat << 'EOF' >> arch/arm64/configs/gki_defconfig
+        # Inline KernelSU Next
+        CONFIG_KSU=y
+        # Disable Google GKI Symbol Trimming
+        CONFIG_TRIM_NONLISTED_KMI=n
+        # USB ConfigFS & HID Arsenal
+        CONFIG_CONFIGFS_FS=y
+        CONFIG_USB_CONFIGFS=y
+        CONFIG_USB_GADGETFS=y
+        CONFIG_USB_CONFIGFS_F_HID=y
+        CONFIG_USB_CONFIGFS_F_MASS_STORAGE=y
+        CONFIG_USB_CONFIGFS_F_ECM=y
+        CONFIG_USB_CONFIGFS_F_ACM=y
+        # Mac80211 Subsystem (Wireless Injection Support)
+        CONFIG_MAC80211=y
+        CONFIG_MAC80211_RC_MINSTREL=y
+        CONFIG_MAC80211_RC_MINSTREL_HT=y
+        CONFIG_MAC80211_RC_MINSTREL_VHT=y
+        CONFIG_MAC80211_RC_DEFAULT_MINSTREL=y
+        CONFIG_MAC80211_MESH=y
+        CONFIG_CFG80211=y
+        
+        # External Wi-Fi Adapters (Atheros & Realtek)
+        CONFIG_WLAN_VENDOR_ATH=y
+        CONFIG_ATH9K_HTC=m
+        CONFIG_WLAN_VENDOR_REALTEK=y
+        CONFIG_RTL8187=m
+        CONFIG_RTL8XXXU=m
+        # Disable incompatible legacy Ralink subsystem
+        CONFIG_WLAN_VENDOR_RALINK=n
+        
+        # Bluetooth & VPN Support
+        CONFIG_BT_HCIBTUSB=m
+        CONFIG_WIREGUARD=y
+        
+        # CPU Governors
+        CONFIG_CPU_FREQ_GOV_PERFORMANCE=y
+        CONFIG_CPU_FREQ_GOV_POWERSAVE=y
+        CONFIG_CPU_FREQ_GOV_USERSPACE=y
+        CONFIG_CPU_FREQ_GOV_ONDEMAND=y
+        CONFIG_CPU_FREQ_GOV_CONSERVATIVE=y
+        # Thermal & Power Debugging
+        CONFIG_POWER_SUPPLY_DEBUG=y
+        CONFIG_DEBUG_FS=y
+        CONFIG_THERMAL_GOV_USER_SPACE=y
+        # Networking Optimizations & BBR TCP
+        CONFIG_TCP_CONG_BBR=y
+        CONFIG_NET_SCH_FQ=y
+        CONFIG_DEFAULT_BBR=y
+        # TTL Modification Support
+        CONFIG_NETFILTER_XT_TARGET_HL=y
+        CONFIG_IP_NF_TARGET_TTL=y
+        CONFIG_IP6_NF_TARGET_HL=y
+        # Drive & Filesystem Support
+        CONFIG_NTFS3_FS=y
+        CONFIG_EXFAT_FS=y
+        CONFIG_ISO9660_FS=y
+        CONFIG_UDF_FS=y
+        EOF
+
+    - name: Authorize NetHunter Symbols in GKI
+      run: |
+        cd workspace
+        
+        # Master list of required network & driver symbols
+        # (Note: File I/O symbols were intentionally omitted and handled via dummy macros for GKI bypass)
+        cat << 'EOF' > missing_symbols.txt
+        __dev_kfree_skb_irq
+        __hci_cmd_sync
+        __hci_cmd_sync_ev
+        __printk_ratelimit
+        __pskb_copy_fclone
+        __regmap_init
+        bit_wait_timeout
+        bt_err
+        bt_info
+        bt_to_errno
+        bt_warn
+        btbcm_set_bdaddr
+        btbcm_setup_apple
+        btbcm_setup_patchram
+        device_release_driver
+        flush_signals
+        gpiod_get_optional
+        gpiod_put
+        hci_alloc_dev_priv
+        hci_cmd_sync
+        hci_cmd_sync_cancel
+        hci_free_dev
+        hci_recv_diag
+        hci_recv_frame
+        hci_register_dev
+        hci_unregister_dev
+        iwe_stream_add_event
+        iwe_stream_add_point
+        kernel_sigaction
+        kill_pid
+        led_trigger_blink
+        led_trigger_blink_oneshot
+        out_of_line_wait_on_bit_timeout
+        proc_get_parent_data
+        rfkill_pause_polling
+        rhashtable_init
+        skb_pull_data
+        skb_unlink
+        usb_alloc_coherent
+        usb_alloc_urb
+        usb_anchor_urb
+        usb_autopm_get_interface
+        usb_autopm_put_interface
+        usb_bulk_msg
+        usb_control_msg
+        usb_deregister
+        usb_driver_claim_interface
+        usb_driver_release_interface
+        usb_find_common_endpoints
+        usb_free_coherent
+        usb_free_urb
+        usb_get_dev
+        usb_get_from_anchor
+        usb_get_urb
+        usb_ifnum_to_if
+        usb_init_urb
+        usb_interrupt_msg
+        usb_kill_anchored_urbs
+        usb_kill_urb
+        usb_match_id
+        usb_put_dev
+        usb_queue_reset_device
+        usb_register_driver
+        usb_reset_device
+        usb_scuttle_anchored_urbs
+        usb_set_interface
+        usb_submit_urb
+        usb_unanchor_urb
+        wake_up_bit
+        yield
+        EOF
+        
+        # Append symbols to Google whitelist manifests across workspace
+        find . -type f \( -name "abi_gki_aarch64*" -o -name "*symbol_list*" \) | grep -vE "\.(bzl|stg|xml|json|html|sh|py)$" | while read -r list_file; do
+            echo "Updating symbol list: $list_file"
+            chmod u+w "$list_file" || true
+            echo "" >> "$list_file"
+            cat missing_symbols.txt >> "$list_file"
+        done
+
+    - name: Whitelist Custom Modules in Bazel
+      run: |
+        cd workspace
+        
+        # Use curl with retries to prevent random GitHub Actions network drops
+        curl -sSL --retry 3 -o buildozer https://github.com/bazelbuild/buildtools/releases/download/v7.1.2/buildozer-linux-amd64
+        chmod +x buildozer
+        
+        # Inject Atheros, Realtek, and RTL8812AU modules into shusky build targets
+        ./buildozer 'add module_outs drivers/bluetooth/btusb.ko drivers/net/wireless/ath/ath.ko drivers/net/wireless/ath/ath9k/ath9k_common.ko drivers/bluetooth/btintel.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/bluetooth/btrtl.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.ko drivers/net/wireless/realtek/rtl8812au/88XXau.ko' //private/devices/google/shusky:kernel || true
+        
+    - name: Force Bazel to Pack DLKM Partitions
+      run: |
+        cd workspace
+        
+        # Array of all custom out-of-tree modules we compiled
+        MODULES=(
+          "88XXau.ko"
+          "ath9k_htc.ko"
+          "rtl8187.ko"
+          "rtl8xxxu.ko"
+          "btusb.ko"
+          "btrtl.ko"
+          "btintel.ko"
+          "ath.ko"
+          "ath9k_common.ko"
+          "ath9k_hw.ko"
+          "eeprom_93cx6.ko"
+        )
+        
+        # Inject them into the Google DLKM packaging manifests so Bazel embeds them inside vendor_dlkm.img safely
+        for mod in "${MODULES[@]}"; do
+            find private/devices/google -type f \( -name "*dlkm.modules.blocklist" -o -name "*dlkm.modules" \) | while read -r list_file; do
+                echo "$mod" >> "$list_file"
+                echo "Injected $mod into $list_file"
+            done
+        done
+
+    - name: Compile Pixel 8 Pro Kernel via Bazel
+      run: |
+        cd workspace
+        BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode" ./build_shusky.sh
+
+    - name: Package Kernel and Raw Driver Partitions
+      run: |
+        cd workspace
+        
+        # PART 1: ANYKERNEL3 ZIP
+        # Clone your custom Sultan-based AK3 template tailored for the Pixel 8 Pro
+        git clone https://github.com/stoag/AnyKernel3-Pixel8Pro.git AnyKernel3
+        
+        wget -qO AnyKernel3/tools/busybox https://raw.githubusercontent.com/xerta555/Busybox-Binaries/master/busybox-arm64
+        chmod +x AnyKernel3/tools/busybox
+        wget -qO magisk.zip https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk
+        unzip -j magisk.zip lib/arm64-v8a/libmagiskboot.so
+        mv libmagiskboot.so AnyKernel3/tools/magiskboot
+        chmod +x AnyKernel3/tools/magiskboot
+        rm magisk.zip
+        
+        cp out/shusky/dist/Image.lz4 AnyKernel3/
+        
+        # Gently inject the current version number into your existing anykernel.sh
+        sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh
+        
+        cd AnyKernel3
+        zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-AK3-Boot.zip * -x README.md
+        cd ..
+
+        # PART 2: RAW GKI HARDWARE DRIVERS
+        mkdir -p GKI-Raw-Drivers
+        cp out/shusky/dist/vendor_kernel_boot.img GKI-Raw-Drivers/
+        cp out/shusky/dist/vendor_dlkm.img GKI-Raw-Drivers/
+        cp out/shusky/dist/system_dlkm.img GKI-Raw-Drivers/ 2>/dev/null || true
+        
+        # PART 3: MASTER RELEASE PACKAGE
+        # Create a master folder and move the AK3 zip and the Raw Drivers folder inside it
+        mkdir -p Master-Release
+        mv Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-AK3-Boot.zip Master-Release/
+        mv GKI-Raw-Drivers Master-Release/Raw-Image-Files
+        
+        # Zip the master release folder
+        cd Master-Release
+        zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Release.zip *
+        cd ..
+
+    - name: Upload Master Release Zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Release
+        path: workspace/*Release.zip
+        if-no-files-found: error
