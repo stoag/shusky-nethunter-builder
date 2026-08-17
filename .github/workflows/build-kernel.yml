@@ -84,7 +84,7 @@ jobs:
         # Inject the dummy fallback functions directly into the driver's OS dependency file        
         OSDEP_FILE=$(find drivers/net/wireless/realtek/rtl8812au -name "osdep_service.c" | head -n 1)        
         cat << 'EOF' >> "$OSDEP_FILE"                
-        /* GKI PREBUILT BY Bypass - STUB FILE I/O */        
+        /* GKI PREBUILT BYPASS - STUB FILE I/O */        
         #include <linux/fs.h>        
         #include <linux/err.h>        
         #include <linux/errno.h>        
@@ -310,22 +310,6 @@ jobs:
             cat missing_symbols.txt >> "$list_file"        
         done    
     
-    - name: Track New Modules in Bazel
-      run: |
-        cd workspace/aosp
-        
-        # Download buildozer (Bazel file editor)
-        wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
-        chmod +x buildozer
-        
-        # Add your specific injected Wi-Fi drivers to the shusky baseline module list
-        ./buildozer 'add module_outs realtek/rtl8812au/88XXau.ko' //private/devices/google/shusky:shusky_base_modules
-        
-        # Add native in-tree modules you activated via Kconfig
-        ./buildozer 'add module_outs realtek/rtlwifi/rtl8192cu/rtl8192cu.ko' //private/devices/google/shusky:shusky_base_modules
-        ./buildozer 'add module_outs ath/ath9k/ath9k_htc.ko' //private/devices/google/shusky:shusky_base_modules
-        ./buildozer 'add module_outs mediatek/mt7601u/mt7601u.ko' //private/devices/google/shusky:shusky_base_modules
-    
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
         cd workspace        
@@ -352,7 +336,14 @@ jobs:
         
         # THE TROJAN HORSE: Move drivers into a hidden AK3 folder        
         mkdir -p AnyKernel3/twk_drivers        
+        
+        # 1. Grab all standard Google modules promoted to dist
         find out/shusky/dist -name "*.ko" -exec cp {} AnyKernel3/twk_drivers/ \;                
+        
+        # 2. Sweep the Bazel build cache for the specific NetHunter modules we injected
+        for module in 88XXau.ko rtl8192cu.ko ath9k_htc.ko mt7601u.ko; do
+            find out/bazel/bin -type f -name "$module" | head -n 1 | xargs -I {} cp {} AnyKernel3/twk_drivers/ || true
+        done
         
         # Update the version string        
         sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh                
