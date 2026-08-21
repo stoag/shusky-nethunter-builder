@@ -370,9 +370,10 @@ jobs:
         cd workspace
         mkdir -p custom_partitions
         echo "Hunting down Bazel's hidden partition images..."
-        find out/bazel/bin/private/devices/google/shusky -name "vendor_dlkm.img" -type f -exec cp -L {} custom_partitions/ \;
-        find out/bazel/bin/private/devices/google/shusky -name "system_dlkm.img" -type f -exec cp -L {} custom_partitions/ \;
-        find out/bazel/bin/private/devices/google/shusky -name "vendor_kernel_boot.img" -type f -exec cp -L {} custom_partitions/ \;
+        
+        find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} custom_partitions/ \;
+        find out/ -type f -name "system_dlkm.img" -exec cp -L {} custom_partitions/ \;
+        find out/ -type f -name "vendor_kernel_boot.img" -exec cp -L {} custom_partitions/ \;
         
         echo "VERIFYING EXTRACTED PARTITIONS:"
         ls -lh custom_partitions/
