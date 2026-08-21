@@ -134,9 +134,6 @@ jobs:
         # 1. Inject KernelSU Next inline source code        
         curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -                
         
-        # Temporarily commented out to prevent "KMI or sublevel mismatch" panics
-        # echo 'CONFIG_LOCALVERSION="-${{ env.CUSTOM_KERNEL_VERSION }}"' >> arch/arm64/configs/gki_defconfig
-        
         # 2. Append configs cleanly
         {
           echo '# Inline KernelSU Next'
@@ -178,7 +175,6 @@ jobs:
           
           echo '# --- NETHUNTER EXTERNAL WI-FI ADAPTER MASTER LIST ---'
           echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
-          
           echo '# (Commented out specific in-tree modules for now to bypass linking errors)'
           echo '# CONFIG_WLAN_VENDOR_ATH=y'
           echo '# CONFIG_ATH9K_HTC=m'
@@ -215,95 +211,6 @@ jobs:
     - name: Authorize NetHunter Symbols in GKI
       run: |
         cd workspace
-        
-        # --- NETHUNTER SYMBOLS AUTHORIZATION (COMMENTED OUT FOR NOW) ---
-        # We will uncomment this block when we are ready to build Mediatek/Atheros
-        # out-of-tree modules that require these specific core kernel exports.
-        
-        # {
-        #   echo '__dev_kfree_skb_irq'
-        #   echo '__hci_cmd_sync'
-        #   echo '__hci_cmd_sync_ev'
-        #   echo '__printk_ratelimit'
-        #   echo '__pskb_copy_fclone'
-        #   echo '__regmap_init'
-        #   echo 'bit_wait_timeout'
-        #   echo 'bt_err'
-        #   echo 'bt_info'
-        #   echo 'bt_to_errno'
-        #   echo 'bt_warn'
-        #   echo 'btbcm_set_bdaddr'
-        #   echo 'btbcm_setup_apple'
-        #   echo 'btbcm_setup_patchram'
-        #   echo 'device_release_driver'
-        #   echo 'flush_signals'
-        #   echo 'gpiod_get_optional'
-        #   echo 'gpiod_put'
-        #   echo 'hci_alloc_dev_priv'
-        #   echo 'hci_cmd_sync'
-        #   echo 'hci_cmd_sync_cancel'
-        #   echo 'hci_free_dev'
-        #   echo 'hci_recv_diag'
-        #   echo 'hci_recv_frame'
-        #   echo 'hci_register_dev'
-        #   echo 'hci_unregister_dev'
-        #   echo 'iwe_stream_add_event'
-        #   echo 'iwe_stream_add_point'
-        #   echo 'kernel_sigaction'
-        #   echo 'kill_pid'
-        #   echo 'led_trigger_blink'
-        #   echo 'led_trigger_blink_oneshot'
-        #   echo 'out_of_line_wait_on_bit_timeout'
-        #   echo 'proc_get_parent_data'
-        #   echo 'rfkill_pause_polling'
-        #   echo 'rhashtable_init'
-        #   echo 'skb_pull_data'
-        #   echo 'skb_unlink'
-        #   echo 'usb_alloc_coherent'
-        #   echo 'usb_alloc_urb'
-        #   echo 'usb_anchor_urb'
-        #   echo 'usb_autopm_get_interface'
-        #   echo 'usb_autopm_put_interface'
-        #   echo 'usb_bulk_msg'
-        #   echo 'usb_control_msg'
-        #   echo 'usb_deregister'
-        #   echo 'usb_driver_claim_interface'
-        #   echo 'usb_driver_release_interface'
-        #   echo 'usb_find_common_endpoints'
-        #   echo 'usb_free_coherent'
-        #   echo 'usb_free_urb'
-        #   echo 'usb_get_dev'
-        #   echo 'usb_get_from_anchor'
-        #   echo 'usb_get_urb'
-        #   echo 'usb_ifnum_to_if'
-        #   echo 'usb_init_urb'
-        #   echo 'usb_interrupt_msg'
-        #   echo 'usb_kill_anchored_urbs'
-        #   echo 'usb_kill_urb'
-        #   echo 'usb_match_id'
-        #   echo 'usb_put_dev'
-        #   echo 'usb_queue_reset_device'
-        #   echo 'usb_register_driver'
-        #   echo 'usb_reset_device'
-        #   echo 'usb_scuttle_anchored_urbs'
-        #   echo 'usb_set_interface'
-        #   echo 'usb_submit_urb'
-        #   echo 'usb_unanchor_urb'
-        #   echo 'wake_up_bit'
-        #   echo 'yield'
-        # } > missing_symbols.txt
-        
-        # This is the upgraded, laser-focused injection logic that bypasses Bazel scripts:
-        # cd aosp/android
-        # for list_file in abi_gki_aarch64 abi_gki_aarch64_pixel abi_gki_aarch64_core; do            
-        #     if [ -f "$list_file" ]; then            
-        #         chmod u+w "$list_file" || true            
-        #         echo "" >> "$list_file"            
-        #         cat ../../missing_symbols.txt >> "$list_file"
-        #         echo "Patched KMI Symbol List: $list_file"
-        #     fi
-        # done
-        
         echo "Symbol authorization safely bypassed for now."
 
     - name: Track New Modules in Bazel
@@ -314,11 +221,8 @@ jobs:
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
         
-        # Track purely the Realtek driver we injected
-        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/88XXau.ko' //private/devices/google/shusky:kernel
-        
-        # (Commented out module tracking for other adapters until we revisit)
-        # ./buildozer 'add module_outs drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt7921/mt7921-common.ko drivers/net/wireless/ath/ath9k/ath9k_common.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76-connac-lib.ko drivers/bluetooth/btrtl.ko drivers/net/wireless/mediatek/mt76/mt76x0/mt76x0u.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/bluetooth/btusb.ko drivers/net/wireless/mediatek/mt76/mt7921/mt7921u.ko drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.ko drivers/net/wireless/ath/ath.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/net/wireless/mediatek/mt76/mt76x0/mt76x0-common.ko' //private/devices/google/shusky:kernel
+        # Track the Realtek driver AND the Bluetooth modules built via Kconfig
+        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/88XXau.ko drivers/bluetooth/btintel.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btrtl.ko' //private/devices/google/shusky:kernel
     
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
@@ -389,3 +293,11 @@ jobs:
         name: Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Release        
         path: workspace/*AK3-Boot.zip        
         if-no-files-found: error
+
+    - name: Ping Phone - Success
+      if: success()
+      run: curl -d "✅ Pixel 8 Pro Kernel Build COMPLETE! Wake up and grab the ZIP!" ntfy.sh/twk_pixel8_build_alerts
+
+    - name: Ping Phone - Failure
+      if: failure()
+      run: curl -d "❌ Pixel 8 Pro Kernel Build FAILED! Check the logs." ntfy.sh/twk_pixel8_build_alerts
