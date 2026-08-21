@@ -75,14 +75,20 @@ jobs:
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile        
         sed -i 's/obj-\$(CONFIG_88XXAU)/obj-m/g' drivers/net/wireless/realtek/rtl8812au/Makefile                
         
-        # 5. FORCE compilation and suppress strict Clang 18 cast/pointer warnings completely
+        # 5. FORCE compilation and suppress strict Clang 18 warnings completely
         {
           echo 'EXTRA_CFLAGS += -Wno-error'
           echo 'EXTRA_CFLAGS += -Wno-cast-function-type'
           echo 'EXTRA_CFLAGS += -Wno-incompatible-pointer-types'
+          echo 'EXTRA_CFLAGS += -Wno-uninitialized'
+          echo 'EXTRA_CFLAGS += -Wno-sometimes-uninitialized'
+          echo 'EXTRA_CFLAGS += -Wno-tautological-overlap-compare'
           echo 'ccflags-y += -Wno-error'
           echo 'ccflags-y += -Wno-cast-function-type'
           echo 'ccflags-y += -Wno-incompatible-pointer-types'
+          echo 'ccflags-y += -Wno-uninitialized'
+          echo 'ccflags-y += -Wno-sometimes-uninitialized'
+          echo 'ccflags-y += -Wno-tautological-overlap-compare'
         } >> drivers/net/wireless/realtek/rtl8812au/Makefile               
         
         # 6. GKI PREBUILT BYPASS: Stub restricted File I/O functions using compile-time macros        
@@ -344,7 +350,27 @@ jobs:
         sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh                
         
         # Append the Silent Injection script to the bottom of anykernel.sh        
-        {\n          echo '# --- TWEAKER KERNEL SILENT DRIVER INJECTION ---'\n          echo 'ui_print \" \";'\n          echo 'ui_print \"- Injecting NetHunter Wi-Fi Drivers safely into system overlay...\";'\n          echo 'mount /data;'\n          echo 'MOD_DIR=\"/data/adb/modules/twk_nethunter_drivers\"'\n          echo 'rm -rf $MOD_DIR'\n          echo 'mkdir -p $MOD_DIR/system/vendor/lib/modules'\n          echo 'cp -f $home/twk_drivers/*.ko $MOD_DIR/system/vendor/lib/modules/'\n          echo 'echo \"id=twk_nethunter_drivers\" > $MOD_DIR/module.prop'\n          echo 'echo \"name=Tweaker Kernel NetHunter Drivers\" >> $MOD_DIR/module.prop'\n          echo 'echo \"version=${{ env.CUSTOM_KERNEL_VERSION }}\" >> $MOD_DIR/module.prop'\n          echo 'echo \"versionCode=102\" >> $MOD_DIR/module.prop'\n          echo 'echo \"author=Tweaker\" >> $MOD_DIR/module.prop'\n          echo 'echo \"description=Auto-injected driver overlay for Kali NetHunter.\" >> $MOD_DIR/module.prop'\n          echo 'echo \"#!/system/bin/sh\" > $MOD_DIR/service.sh'\n          \n          # Dynamically load the driver we copied into the KernelSU directory\n          echo 'echo \"insmod $MOD_DIR/system/vendor/lib/modules/88XXau.ko\" >> $MOD_DIR/service.sh'\n          \n          echo 'chmod +x $MOD_DIR/service.sh'\n          echo 'ui_print \"- Drivers integrated successfully!\";'\n          echo '# ----------------------------------------------'\n        } >> AnyKernel3/anykernel.sh                
+        {
+          echo '# --- TWEAKER KERNEL SILENT DRIVER INJECTION ---'
+          echo 'ui_print " ";'
+          echo 'ui_print "- Injecting NetHunter Wi-Fi Drivers safely into system overlay...";'
+          echo 'mount /data;'
+          echo 'MOD_DIR="/data/adb/modules/twk_nethunter_drivers"'
+          echo 'rm -rf $MOD_DIR'
+          echo 'mkdir -p $MOD_DIR/system/vendor/lib/modules'
+          echo 'cp -f $home/twk_drivers/*.ko $MOD_DIR/system/vendor/lib/modules/'
+          echo 'echo "id=twk_nethunter_drivers" > $MOD_DIR/module.prop'
+          echo 'echo "name=Tweaker Kernel NetHunter Drivers" >> $MOD_DIR/module.prop'
+          echo 'echo "version=${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
+          echo 'echo "versionCode=102" >> $MOD_DIR/module.prop'
+          echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
+          echo 'echo "description=Auto-injected driver overlay for Kali NetHunter." >> $MOD_DIR/module.prop'
+          echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
+          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/88XXau.ko" >> $MOD_DIR/service.sh'
+          echo 'chmod +x $MOD_DIR/service.sh'
+          echo 'ui_print "- Drivers integrated successfully!";'
+          echo '# ----------------------------------------------'
+        } >> AnyKernel3/anykernel.sh                
         
         cd AnyKernel3        
         zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-AK3-Boot.zip * -x README.md        
