@@ -291,7 +291,6 @@ jobs:
           echo 'yield'
         } > missing_symbols.txt
         
-        # Safely inject symbols only into the correct abi_gki files to avoid poisoning bazel scripts
         for list_file in aosp/android/abi_gki_aarch64 aosp/android/abi_gki_aarch64_pixel aosp/android/abi_gki_aarch64_core aosp/android/abi_gki_aarch64_virtual_device; do
             if [ -f "$list_file" ]; then
                 chmod u+w "$list_file" || true
@@ -305,11 +304,9 @@ jobs:
       run: |
         cd workspace/aosp
         
-        # Download buildozer (Bazel file editor)
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
         
-        # Track the Realtek driver AND the Bluetooth modules built via Kconfig
         ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/88XXau.ko drivers/bluetooth/btintel.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btrtl.ko' //private/devices/google/shusky:kernel
         
     - name: Compile Pixel 8 Pro Kernel via Bazel      
@@ -321,10 +318,8 @@ jobs:
       run: |        
         cd workspace                
         
-        # Clone your custom Sultan-based AK3 template        
         git clone https://github.com/stoag/AnyKernel3-Pixel8Pro.git AnyKernel3                
         
-        # Inject standard binaries        
         wget -qO AnyKernel3/tools/busybox https://raw.githubusercontent.com/xerta555/Busybox-Binaries/master/busybox-arm64        
         chmod +x AnyKernel3/tools/busybox        
         wget -qO magisk.zip https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk        
@@ -333,23 +328,17 @@ jobs:
         chmod +x AnyKernel3/tools/magiskboot        
         rm magisk.zip                
         
-        # Move the compiled kernel into the AK3 folder        
         cp out/shusky/dist/Image.lz4 AnyKernel3/                
         
-        # THE TROJAN HORSE: Move drivers into a hidden AK3 folder        
         mkdir -p AnyKernel3/twk_drivers        
         
-        # Target our specific adapter driver from the official GKI dist output
         find out/shusky/dist -name "88XXau.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
         
-        # Verification check - Prints contents to the Actions Log so you can verify it copied
         echo "VERIFYING DRIVER EXTRACTION:"
         ls -la AnyKernel3/twk_drivers/
         
-        # Update the version string        
         sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh                
         
-        # Append the Silent Injection script to the bottom of anykernel.sh        
         {
           echo '# --- TWEAKER KERNEL SILENT DRIVER INJECTION ---'
           echo 'ui_print " ";'
@@ -375,6 +364,24 @@ jobs:
         cd AnyKernel3        
         zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-AK3-Boot.zip * -x README.md        
         cd ..    
+
+    - name: Package Custom Partition Images
+      run: |
+        cd workspace
+        mkdir -p custom_partitions
+        echo "Hunting down Bazel's hidden partition images..."
+        find out/bazel/bin/private/devices/google/shusky -name "vendor_dlkm.img" -type f -exec cp -L {} custom_partitions/ \;
+        find out/bazel/bin/private/devices/google/shusky -name "system_dlkm.img" -type f -exec cp -L {} custom_partitions/ \;
+        find out/bazel/bin/private/devices/google/shusky -name "vendor_kernel_boot.img" -type f -exec cp -L {} custom_partitions/ \;
+        
+        echo "VERIFYING EXTRACTED PARTITIONS:"
+        ls -lh custom_partitions/
+
+    - name: Upload Custom Partition Images
+      uses: actions/upload-artifact@v4
+      with:
+        name: Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Partitions
+        path: workspace/custom_partitions/*.img
     
     - name: Upload Single Kernel Release Zip      
       uses: actions/upload-artifact@v4      
