@@ -75,11 +75,22 @@ jobs:
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile        
         sed -i 's/obj-\$(CONFIG_88XXAU)/obj-m/g' drivers/net/wireless/realtek/rtl8812au/Makefile                
         
-        # 5. FORCE compilation and use EXTRA_CFLAGS to inherit warning suppressions (ADDED STRICT CAST BYPASS)
-        echo "EXTRA_CFLAGS += -Wno-uninitialized -Wno-attribute-warning -Wno-error -Wno-cast-function-type -Wno-cast-function-type-strict -Wno-incompatible-pointer-types" >> drivers/net/wireless/realtek/rtl8812au/Makefile                
+        # 5. FORCE compilation by strictly suppressing Clang's cast-function-type errors via ccflags-y
+        {
+          echo 'ccflags-y += -Wno-uninitialized'
+          echo 'ccflags-y += -Wno-attribute-warning'
+          echo 'ccflags-y += -Wno-error=cast-function-type'
+          echo 'ccflags-y += -Wno-cast-function-type'
+          echo 'ccflags-y += -Wno-error=incompatible-pointer-types'
+          echo 'ccflags-y += -Wno-incompatible-pointer-types'
+        } >> drivers/net/wireless/realtek/rtl8812au/Makefile               
         
         # 6. GKI PREBUILT BYPASS: Stub restricted File I/O functions using compile-time macros        
-        echo "EXTRA_CFLAGS += -Dfilp_open=filp_open_dummy -Dkernel_read=kernel_read_dummy -Dkernel_write=kernel_write_dummy" >> drivers/net/wireless/realtek/rtl8812au/Makefile                
+        {
+          echo 'ccflags-y += -Dfilp_open=filp_open_dummy'
+          echo 'ccflags-y += -Dkernel_read=kernel_read_dummy'
+          echo 'ccflags-y += -Dkernel_write=kernel_write_dummy'
+        } >> drivers/net/wireless/realtek/rtl8812au/Makefile                
         
         # Inject the dummy fallback functions directly into the driver's OS dependency file        
         OSDEP_FILE=$(find drivers/net/wireless/realtek/rtl8812au -name "osdep_service.c" | head -n 1)        
@@ -123,7 +134,7 @@ jobs:
         # 1. Inject KernelSU Next inline source code        
         curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -                
         
-        # 2. Append configs cleanly (STRIPPED OUT MAC80211 AND EXTRA ADAPTERS)
+        # 2. Append configs cleanly (STRIPPED OUT ALL OTHER ADAPTERS)
         {
           echo '# Inline KernelSU Next'
           echo 'CONFIG_KSU=y'
@@ -159,7 +170,7 @@ jobs:
           echo 'CONFIG_IP_NF_MANGLE=y'
           echo 'CONFIG_IP6_NF_MANGLE=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_MASQUERADE=y'
-          echo '# Wireless Subsystems (MAC80211 REMOVED)'
+          echo '# Wireless Subsystem'
           echo 'CONFIG_CFG80211=y'
           echo '# Bluetooth & VPN Support'
           echo 'CONFIG_BT_HCIBTUSB=m'
@@ -323,9 +334,7 @@ jobs:
           echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
           
           # Dynamically load the driver we copied into the KernelSU directory
-          echo 'for driver in $MOD_DIR/system/vendor/lib/modules/*.ko; do'
-          echo '    echo "insmod $driver" >> $MOD_DIR/service.sh'
-          echo 'done'
+          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/88XXau.ko" >> $MOD_DIR/service.sh'
           
           echo 'chmod +x $MOD_DIR/service.sh'
           echo 'ui_print "- Drivers integrated successfully!";'
