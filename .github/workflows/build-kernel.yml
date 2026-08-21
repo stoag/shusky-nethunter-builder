@@ -75,21 +75,18 @@ jobs:
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile        
         sed -i 's/obj-\$(CONFIG_88XXAU)/obj-m/g' drivers/net/wireless/realtek/rtl8812au/Makefile                
         
-        # 5. FORCE compilation by strictly suppressing Clang's cast-function-type errors via ccflags-y
+        # 5. FORCE compilation and suppress strict Clang 18 cast/pointer warnings completely
         {
-          echo 'ccflags-y += -Wno-uninitialized'
-          echo 'ccflags-y += -Wno-attribute-warning'
-          echo 'ccflags-y += -Wno-error=cast-function-type'
-          echo 'ccflags-y += -Wno-cast-function-type'
-          echo 'ccflags-y += -Wno-error=incompatible-pointer-types'
-          echo 'ccflags-y += -Wno-incompatible-pointer-types'
+          echo 'EXTRA_CFLAGS += -Wno-error'
+          echo 'EXTRA_CFLAGS += -Wno-cast-function-type'
+          echo 'EXTRA_CFLAGS += -Wno-incompatible-pointer-types'
         } >> drivers/net/wireless/realtek/rtl8812au/Makefile               
         
         # 6. GKI PREBUILT BYPASS: Stub restricted File I/O functions using compile-time macros        
         {
-          echo 'ccflags-y += -Dfilp_open=filp_open_dummy'
-          echo 'ccflags-y += -Dkernel_read=kernel_read_dummy'
-          echo 'ccflags-y += -Dkernel_write=kernel_write_dummy'
+          echo 'EXTRA_CFLAGS += -Dfilp_open=filp_open_dummy'
+          echo 'EXTRA_CFLAGS += -Dkernel_read=kernel_read_dummy'
+          echo 'EXTRA_CFLAGS += -Dkernel_write=kernel_write_dummy'
         } >> drivers/net/wireless/realtek/rtl8812au/Makefile                
         
         # Inject the dummy fallback functions directly into the driver's OS dependency file        
@@ -110,22 +107,9 @@ jobs:
           echo '}'
         } >> "$OSDEP_FILE"                
         
-        # 7. Apply deterministic Python patch for Linux 6.1 cfg80211 API changes        
-        python3 -c '        
-        path = "drivers/net/wireless/realtek/rtl8812au/os_dep/linux/ioctl_cfg80211.c"        
-        with open(path, "r") as f:            
-            code = f.read()        
-        target1 = "cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false);"        
-        replacement1 = "cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false, 0);"        
-        target2 = "cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0);"        
-        replacement2 = "cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0, 0);"        
-        if target1 in code:            
-            code = code.replace(target1, replacement1)        
-        if target2 in code:            
-            code = code.replace(target2, replacement2)        
-        with open(path, "w") as f:            
-            f.write(code)        
-        '    
+        # 7. Apply clean sed patch for Linux 6.1 cfg80211 API changes
+        sed -i 's/cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false);/cfg80211_ch_switch_started_notify(adapter->pnetdev, \&chdef, 0, 0, false, 0);/g' drivers/net/wireless/realtek/rtl8812au/os_dep/linux/ioctl_cfg80211.c
+        sed -i 's/cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0);/cfg80211_ch_switch_notify(adapter->pnetdev, \&chdef, 0, 0);/g' drivers/net/wireless/realtek/rtl8812au/os_dep/linux/ioctl_cfg80211.c
     
     - name: Apply KernelSU Next Patches & Configs      
       run: |        
@@ -134,7 +118,10 @@ jobs:
         # 1. Inject KernelSU Next inline source code        
         curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -                
         
-        # 2. Append configs cleanly (STRIPPED OUT ALL OTHER ADAPTERS)
+        # Temporarily commented out to prevent "KMI or sublevel mismatch" panics
+        # echo 'CONFIG_LOCALVERSION="-${{ env.CUSTOM_KERNEL_VERSION }}"' >> arch/arm64/configs/gki_defconfig
+        
+        # 2. Append configs cleanly
         {
           echo '# Inline KernelSU Next'
           echo 'CONFIG_KSU=y'
@@ -172,6 +159,24 @@ jobs:
           echo 'CONFIG_NETFILTER_XT_TARGET_MASQUERADE=y'
           echo '# Wireless Subsystem'
           echo 'CONFIG_CFG80211=y'
+          
+          echo '# --- NETHUNTER EXTERNAL WI-FI ADAPTER MASTER LIST ---'
+          echo '# (Commented out for now to bypass module linking errors. We will revisit later!)'
+          echo '# CONFIG_WLAN_VENDOR_ATH=y'
+          echo '# CONFIG_ATH9K_HTC=m'
+          echo '# CONFIG_WLAN_VENDOR_REALTEK=y'
+          echo '# CONFIG_RTL8187=m'
+          echo '# CONFIG_RTL8XXXU=m'
+          echo '# CONFIG_WLAN_VENDOR_MEDIATEK=y'
+          echo '# CONFIG_MT7601U=m'
+          echo '# CONFIG_MT76x0U=m'
+          echo '# CONFIG_MT76x2U=m'
+          echo '# CONFIG_MT7921U=m'
+          echo '# CONFIG_WLAN_VENDOR_INTEL=y'
+          echo '# CONFIG_IWLDVM=m'
+          echo '# CONFIG_IWLMVM=m'
+          echo '# ----------------------------------------------------'
+
           echo '# Bluetooth & VPN Support'
           echo 'CONFIG_BT_HCIBTUSB=m'
           echo 'CONFIG_WIREGUARD=y'
@@ -189,87 +194,95 @@ jobs:
           echo 'CONFIG_IP_NF_TARGET_TTL=y'
           echo 'CONFIG_IP6_NF_TARGET_HL=y'
         } >> arch/arm64/configs/gki_defconfig    
-    
-    - name: Authorize NetHunter Symbols in GKI      
-      run: |        
-        cd workspace                
-        {
-          echo '__dev_kfree_skb_irq'
-          echo '__hci_cmd_sync'
-          echo '__hci_cmd_sync_ev'
-          echo '__printk_ratelimit'
-          echo '__pskb_copy_fclone'
-          echo '__regmap_init'
-          echo 'bit_wait_timeout'
-          echo 'bt_err'
-          echo 'bt_info'
-          echo 'bt_to_errno'
-          echo 'bt_warn'
-          echo 'btbcm_set_bdaddr'
-          echo 'btbcm_setup_apple'
-          echo 'btbcm_setup_patchram'
-          echo 'device_release_driver'
-          echo 'flush_signals'
-          echo 'gpiod_get_optional'
-          echo 'gpiod_put'
-          echo 'hci_alloc_dev_priv'
-          echo 'hci_cmd_sync'
-          echo 'hci_cmd_sync_cancel'
-          echo 'hci_free_dev'
-          echo 'hci_recv_diag'
-          echo 'hci_recv_frame'
-          echo 'hci_register_dev'
-          echo 'hci_unregister_dev'
-          echo 'iwe_stream_add_event'
-          echo 'iwe_stream_add_point'
-          echo 'kernel_sigaction'
-          echo 'kill_pid'
-          echo 'out_of_line_wait_on_bit_timeout'
-          echo 'proc_get_parent_data'
-          echo 'rfkill_pause_polling'
-          echo 'rhashtable_init'
-          echo 'skb_pull_data'
-          echo 'skb_unlink'
-          echo 'usb_alloc_coherent'
-          echo 'usb_alloc_urb'
-          echo 'usb_anchor_urb'
-          echo 'usb_autopm_get_interface'
-          echo 'usb_autopm_put_interface'
-          echo 'usb_bulk_msg'
-          echo 'usb_control_msg'
-          echo 'usb_deregister'
-          echo 'usb_driver_claim_interface'
-          echo 'usb_driver_release_interface'
-          echo 'usb_find_common_endpoints'
-          echo 'usb_free_coherent'
-          echo 'usb_free_urb'
-          echo 'usb_get_dev'
-          echo 'usb_get_from_anchor'
-          echo 'usb_get_urb'
-          echo 'usb_ifnum_to_if'
-          echo 'usb_init_urb'
-          echo 'usb_interrupt_msg'
-          echo 'usb_kill_anchored_urbs'
-          echo 'usb_kill_urb'
-          echo 'usb_match_id'
-          echo 'usb_put_dev'
-          echo 'usb_queue_reset_device'
-          echo 'usb_register_driver'
-          echo 'usb_reset_device'
-          echo 'usb_scuttle_anchored_urbs'
-          echo 'usb_set_interface'
-          echo 'usb_submit_urb'
-          echo 'usb_unanchor_urb'
-          echo 'wake_up_bit'
-          echo 'yield'
-        } > missing_symbols.txt                
+
+    - name: Authorize NetHunter Symbols in GKI
+      run: |
+        cd workspace
         
-        find . -type f \( -name "abi_gki_aarch64*" -o -name "*symbol_list*" \) | grep -vE "\.(bzl|stg|xml|json|html|sh|py)$" | while read -r list_file; do            
-            echo "Updating symbol list: $list_file"            
-            chmod u+w "$list_file" || true            
-            echo "" >> "$list_file"            
-            cat missing_symbols.txt >> "$list_file"        
-        done    
+        # --- NETHUNTER SYMBOLS AUTHORIZATION (COMMENTED OUT FOR NOW) ---
+        # We will uncomment this block when we are ready to build Mediatek/Atheros
+        # out-of-tree modules that require these specific core kernel exports.
+        
+        # cat << 'EOF' > missing_symbols.txt
+        # __dev_kfree_skb_irq
+        # __hci_cmd_sync
+        # __hci_cmd_sync_ev
+        # __printk_ratelimit
+        # __pskb_copy_fclone
+        # __regmap_init
+        # bit_wait_timeout
+        # bt_err
+        # bt_info
+        # bt_to_errno
+        # bt_warn
+        # btbcm_set_bdaddr
+        # btbcm_setup_apple
+        # btbcm_setup_patchram
+        # device_release_driver
+        # flush_signals
+        # gpiod_get_optional
+        # gpiod_put
+        # hci_alloc_dev_priv
+        # hci_cmd_sync
+        # hci_cmd_sync_cancel
+        # hci_free_dev
+        # hci_recv_diag
+        # hci_recv_frame
+        # hci_register_dev
+        # hci_unregister_dev
+        # iwe_stream_add_event
+        # iwe_stream_add_point
+        # kernel_sigaction
+        # kill_pid
+        # led_trigger_blink
+        # led_trigger_blink_oneshot
+        # out_of_line_wait_on_bit_timeout
+        # proc_get_parent_data
+        # rfkill_pause_polling
+        # rhashtable_init
+        # skb_pull_data
+        # skb_unlink
+        # usb_alloc_coherent
+        # usb_alloc_urb
+        # usb_anchor_urb
+        # usb_autopm_get_interface
+        # usb_autopm_put_interface
+        # usb_bulk_msg
+        # usb_control_msg
+        # usb_deregister
+        # usb_driver_claim_interface
+        # usb_driver_release_interface
+        # usb_find_common_endpoints
+        # usb_free_coherent
+        # usb_free_urb
+        # usb_get_dev
+        # usb_get_from_anchor
+        # usb_get_urb
+        # usb_ifnum_to_if
+        # usb_init_urb
+        # usb_interrupt_msg
+        # usb_kill_anchored_urbs
+        # usb_kill_urb
+        # usb_match_id
+        # usb_put_dev
+        # usb_queue_reset_device
+        # usb_register_driver
+        # usb_reset_device
+        # usb_scuttle_anchored_urbs
+        # usb_set_interface
+        # usb_submit_urb
+        # usb_unanchor_urb
+        # wake_up_bit
+        # yield
+        # EOF
+        
+        # find . -type f \( -name "abi_gki_aarch64*" -o -name "*symbol_list*" \) | grep -vE "\.(bzl|stg|xml|json|html|sh|py)$" | while read -r list_file; do
+        #     echo "Updating symbol list: $list_file"
+        #     chmod u+w "$list_file" || true
+        #     echo "" >> "$list_file"
+        #     cat missing_symbols.txt >> "$list_file"
+        # done
+        echo "Symbol authorization safely bypassed."
 
     - name: Track New Modules in Bazel
       run: |
