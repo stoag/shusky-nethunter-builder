@@ -132,6 +132,11 @@ jobs:
           echo '    f.write(code)'
         } > patch_cfg80211.py
         python3 patch_cfg80211.py
+        
+        # 8. Fix KCFI (Control Flow Integrity) Kernel Panics on TX Injection
+        find drivers/net/wireless/realtek/rtl8812au -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i -E 's/\bint(\s+rtw_xmit_entry)/netdev_tx_t\1/g' {} +
+        find drivers/net/wireless/realtek/rtl8812au -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i -E 's/\bint(\s+_rtw_xmit_entry)/netdev_tx_t\1/g' {} +
+        find drivers/net/wireless/realtek/rtl8812au -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i -E 's/\bint(\s+rtw_monitor_xmit_entry)/netdev_tx_t\1/g' {} +
     
     - name: Apply KernelSU Next Patches & Configs      
       run: |        
@@ -140,12 +145,13 @@ jobs:
         # 1. Inject KernelSU Next inline source code        
         curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -                
         
-        # 2. Append configs cleanly
+        # 2. Append configs cleanly (NetHunter Arsenal + AFWall+ Logging)
         {
           echo '# Inline KernelSU Next'
           echo 'CONFIG_KSU=y'
           echo 'CONFIG_TRIM_NONLISTED_KMI=n'
-          echo '# USB ConfigFS & HID Arsenal'
+          
+          echo '# USB ConfigFS & HID Arsenal (BadUSB / DriveDroid)'
           echo 'CONFIG_CONFIGFS_FS=y'
           echo 'CONFIG_USB_CONFIGFS=y'
           echo 'CONFIG_USB_GADGETFS=y'
@@ -155,63 +161,38 @@ jobs:
           echo 'CONFIG_USB_CONFIGFS_F_ACM=y'
           echo 'CONFIG_USB_CONFIGFS_RNDIS=y'
           echo 'CONFIG_USB_CONFIGFS_NCM=y'
-          echo '# Bridging & Netlink Hooks'
-          echo 'CONFIG_BRIDGE=y'
-          echo 'CONFIG_BRIDGE_NETFILTER=y'
+          
+          echo '# AFWall+ & Netfilter Logging (No Bridge Conflicts)'
           echo 'CONFIG_NETFILTER_NETLINK_LOG=y'
           echo 'CONFIG_NETFILTER_NETLINK_QUEUE=y'
-          echo '# Logging & User-Space Queueing'
           echo 'CONFIG_NETFILTER_XT_TARGET_LOG=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_NFLOG=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_NFQUEUE=y'
-          echo '# Iptables Matching & Stateful Inspection'
           echo 'CONFIG_NETFILTER_XT_MATCH_OWNER=y'
           echo 'CONFIG_NETFILTER_XT_MATCH_STATE=y'
-          echo 'CONFIG_NETFILTER_XT_MATCH_CONNTRACK=y'
           echo 'CONFIG_NETFILTER_XT_MATCH_MARK=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_MARK=y'
-          echo '# NAT & Packet Mangling'
+          
+          echo '# NAT, Packet Mangling & WireGuard'
           echo 'CONFIG_IP_NF_NAT=y'
           echo 'CONFIG_IP6_NF_NAT=y'
           echo 'CONFIG_IP_NF_MANGLE=y'
           echo 'CONFIG_IP6_NF_MANGLE=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_MASQUERADE=y'
-          echo '# Wireless Subsystem'
-          echo 'CONFIG_CFG80211=y'
-          
-          echo '# --- NETHUNTER EXTERNAL WI-FI ADAPTER MASTER LIST ---'
-          echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
-          echo '# (Commented out specific in-tree modules for now to bypass linking errors)'
-          echo '# CONFIG_WLAN_VENDOR_ATH=y'
-          echo '# CONFIG_ATH9K_HTC=m'
-          echo '# CONFIG_RTL8187=m'
-          echo '# CONFIG_RTL8XXXU=m'
-          echo '# CONFIG_WLAN_VENDOR_MEDIATEK=y'
-          echo '# CONFIG_MT7601U=m'
-          echo '# CONFIG_MT76x0U=m'
-          echo '# CONFIG_MT76x2U=m'
-          echo '# CONFIG_MT7921U=m'
-          echo '# CONFIG_WLAN_VENDOR_INTEL=y'
-          echo '# CONFIG_IWLDVM=m'
-          echo '# CONFIG_IWLMVM=m'
-          echo '# ----------------------------------------------------'
-
-          echo '# Bluetooth & VPN Support'
-          echo 'CONFIG_BT_HCIBTUSB=m'
           echo 'CONFIG_WIREGUARD=y'
-          echo '# CPU Governors & BBR TCP'
-          echo 'CONFIG_CPU_FREQ_GOV_PERFORMANCE=y'
-          echo 'CONFIG_CPU_FREQ_GOV_POWERSAVE=y'
-          echo 'CONFIG_CPU_FREQ_GOV_USERSPACE=y'
-          echo 'CONFIG_CPU_FREQ_GOV_ONDEMAND=y'
-          echo 'CONFIG_CPU_FREQ_GOV_CONSERVATIVE=y'
-          echo 'CONFIG_TCP_CONG_BBR=y'
-          echo 'CONFIG_NET_SCH_FQ=y'
-          echo 'CONFIG_DEFAULT_BBR=y'
-          echo '# TTL Modification Support'
-          echo 'CONFIG_NETFILTER_XT_TARGET_HL=y'
-          echo 'CONFIG_IP_NF_TARGET_TTL=y'
-          echo 'CONFIG_IP6_NF_TARGET_HL=y'
+          
+          echo '# Future-Proof Wireless Drivers (Realtek, Atheros, MediaTek)'
+          echo 'CONFIG_CFG80211=y'
+          echo 'CONFIG_MAC80211=y'
+          echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
+          echo 'CONFIG_WLAN_VENDOR_ATH=y'
+          echo 'CONFIG_ATH9K_HTC=m'
+          echo 'CONFIG_WLAN_VENDOR_MEDIATEK=y'
+          echo 'CONFIG_MT7601U=m'
+          echo 'CONFIG_MT76x0U=m'
+          echo 'CONFIG_MT76x2U=m'
+          echo 'CONFIG_MT7921U=m'
+          echo 'CONFIG_BT_HCIBTUSB=m'
         } >> arch/arm64/configs/gki_defconfig    
 
     - name: Authorize NetHunter Symbols in GKI
