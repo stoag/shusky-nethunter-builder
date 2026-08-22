@@ -6,8 +6,10 @@ jobs:
   build-kernel:    
     runs-on: ubuntu-latest    
     env:      
-      # Release Version
-      CUSTOM_KERNEL_VERSION: "twk.v1.02"          
+      # AnyKernel3 Release Zip Versioning
+      CUSTOM_KERNEL_VERSION: "twk.v1.03"
+      # Kernel Localversion Tag (Appears in About Phone Settings)
+      CUSTOM_LOCALVERSION: "-twk_v1.03"
     steps:    
     - name: Free Runner Disk Space      
       run: |        
@@ -147,6 +149,9 @@ jobs:
         
         # 2. Append configs cleanly (NetHunter Arsenal + AFWall+ Logging)
         {
+          echo '# Kernel Name Override (About Phone)'
+          echo "CONFIG_LOCALVERSION=\"${{ env.CUSTOM_LOCALVERSION }}\""
+
           echo '# Inline KernelSU Next'
           echo 'CONFIG_KSU=y'
           echo 'CONFIG_TRIM_NONLISTED_KMI=n'
@@ -168,6 +173,7 @@ jobs:
           echo 'CONFIG_NETFILTER_XT_TARGET_LOG=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_NFLOG=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_NFQUEUE=y'
+          echo 'CONFIG_NETFILTER_XT_MATCH_OWNER=y'
           echo 'CONFIG_NETFILTER_XT_MATCH_STATE=y'
           echo 'CONFIG_NETFILTER_XT_MATCH_MARK=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_MARK=y'
@@ -324,7 +330,7 @@ jobs:
           echo 'echo "id=twk_nethunter_drivers" > $MOD_DIR/module.prop'
           echo 'echo "name=Tweaker Kernel NetHunter Drivers" >> $MOD_DIR/module.prop'
           echo 'echo "version=${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-          echo 'echo "versionCode=102" >> $MOD_DIR/module.prop'
+          echo 'echo "versionCode=103" >> $MOD_DIR/module.prop'
           echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
           echo 'echo "description=Auto-injected driver overlay for Kali NetHunter." >> $MOD_DIR/module.prop'
           echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
