@@ -162,13 +162,12 @@ jobs:
           echo 'CONFIG_USB_CONFIGFS_RNDIS=y'
           echo 'CONFIG_USB_CONFIGFS_NCM=y'
           
-          echo '# AFWall+ & Netfilter Logging (No Bridge Conflicts)'
+          echo '# AFWall+ & Netfilter Logging (SAFE FOR EBPF)'
           echo 'CONFIG_NETFILTER_NETLINK_LOG=y'
           echo 'CONFIG_NETFILTER_NETLINK_QUEUE=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_LOG=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_NFLOG=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_NFQUEUE=y'
-          echo 'CONFIG_NETFILTER_XT_MATCH_OWNER=y'
           echo 'CONFIG_NETFILTER_XT_MATCH_STATE=y'
           echo 'CONFIG_NETFILTER_XT_MATCH_MARK=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_MARK=y'
@@ -181,17 +180,10 @@ jobs:
           echo 'CONFIG_NETFILTER_XT_TARGET_MASQUERADE=y'
           echo 'CONFIG_WIREGUARD=y'
           
-          echo '# Future-Proof Wireless Drivers (Realtek, Atheros, MediaTek)'
+          echo '# Wireless Drivers (Realtek Only to prevent Symbol Linking Errors)'
           echo 'CONFIG_CFG80211=y'
           echo 'CONFIG_MAC80211=y'
           echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
-          echo 'CONFIG_WLAN_VENDOR_ATH=y'
-          echo 'CONFIG_ATH9K_HTC=m'
-          echo 'CONFIG_WLAN_VENDOR_MEDIATEK=y'
-          echo 'CONFIG_MT7601U=m'
-          echo 'CONFIG_MT76x0U=m'
-          echo 'CONFIG_MT76x2U=m'
-          echo 'CONFIG_MT7921U=m'
           echo 'CONFIG_BT_HCIBTUSB=m'
         } >> arch/arm64/configs/gki_defconfig    
 
