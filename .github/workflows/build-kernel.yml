@@ -70,16 +70,13 @@ jobs:
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
         
         # Suppress strict Clang 18 warnings completely
-        {
-          echo 'ccflags-y += -Wno-error -Wno-cast-function-type -Wno-incompatible-pointer-types'
-          echo 'ccflags-y += -Wno-uninitialized -Wno-sometimes-uninitialized -Wno-tautological-overlap-compare'
-        } >> drivers/net/wireless/realtek/rtl8812au/Makefile               
+        sed -i 's/EXTRA_CFLAGS += -O3/EXTRA_CFLAGS += -O3 -Wno-error -Wno-cast-function-type -Wno-incompatible-pointer-types -Wno-uninitialized -Wno-sometimes-uninitialized -Wno-tautological-overlap-compare -Wno-date-time/g' drivers/net/wireless/realtek/rtl8812au/Makefile
         
         # GKI PREBUILT BYPASS: Stub restricted File I/O functions      
         {
-          echo 'ccflags-y += -Dfilp_open=filp_open_dummy'
-          echo 'ccflags-y += -Dkernel_read=kernel_read_dummy'
-          echo 'ccflags-y += -Dkernel_write=kernel_write_dummy'
+          echo 'EXTRA_CFLAGS += -Dfilp_open=filp_open_dummy'
+          echo 'EXTRA_CFLAGS += -Dkernel_read=kernel_read_dummy'
+          echo 'EXTRA_CFLAGS += -Dkernel_write=kernel_write_dummy'
         } >> drivers/net/wireless/realtek/rtl8812au/Makefile                
         
         OSDEP_FILE=$(find drivers/net/wireless/realtek/rtl8812au -name "osdep_service.c" | head -n 1)        
@@ -323,12 +320,4 @@ jobs:
         name: Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Release        
         path: workspace/*AK3-Boot.zip        
         if-no-files-found: error
-
-    - name: Ping Phone - Success
-      if: success()
-      run: curl -d "✅ Pixel 8 Pro Kernel Build COMPLETE! Wake up and grab the ZIP!" https://ntfy.sh/twk_pixel8_build_alerts
-
-    - name: Ping Phone - Failure
-      if: failure()
-      run: curl -d "❌ Pixel 8 Pro Kernel Build FAILED! Check the logs." https://ntfy.sh/twk_pixel8_build_alerts
-      
+        
