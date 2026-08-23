@@ -1,4 +1,5 @@
 name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU Next + ConfigFS
+
 on: 
   workflow_dispatch:
 
@@ -6,10 +7,8 @@ jobs:
   build-kernel:    
     runs-on: ubuntu-latest    
     env:      
-      # AnyKernel3 Release Zip Versioning
-      CUSTOM_KERNEL_VERSION: "twk.v1.03"
-      # Kernel Localversion Tag (Appears in About Phone Settings)
-      CUSTOM_LOCALVERSION: "-twk_v1.03"
+      # Release Version
+      CUSTOM_KERNEL_VERSION: "twk.v1.03"          
     steps:    
     - name: Free Runner Disk Space      
       run: |        
@@ -59,86 +58,40 @@ jobs:
         find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +        
         sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig    
     
-    - name: Inject Android-Optimized RTL8812AU Driver      
+    - name: Inject Linux 6.1-Native RTL8812AU Driver
       run: |        
         cd workspace/aosp                
         
-        # 1. Unlock the upstream Realtek Makefile        
         chmod u+w drivers/net/wireless/realtek/Makefile                
         
-        # 2. Clone the repository into a temporary staging directory        
-        git clone https://github.com/ShorterKing/RTL88x2BU-Android-Drivers_rtl8812au.git /tmp/rtl_repo                
+        # Clone the modern Morrownr repository        
+        git clone https://github.com/morrownr/8812au-20210820.git /tmp/rtl_repo                
+        mv /tmp/rtl_repo drivers/net/wireless/realtek/rtl8812au        
+        echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
         
-        # 3. Extract ONLY the rtl8812au subdirectory into our kernel's realtek tree        
-        mv /tmp/rtl_repo/rtl8812au drivers/net/wireless/realtek/rtl8812au        
-        rm -rf /tmp/rtl_repo                
-        
-        # 4. Hook the specific subdirectory natively into the upstream Kbuild system        
-        echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile        
-        sed -i 's/obj-\$(CONFIG_88XXAU)/obj-m/g' drivers/net/wireless/realtek/rtl8812au/Makefile                
-        
-        # 5. FORCE compilation and suppress strict Clang 18 warnings completely
+        # Suppress strict Clang 18 warnings completely
         {
-          echo 'EXTRA_CFLAGS += -Wno-error'
-          echo 'EXTRA_CFLAGS += -Wno-cast-function-type'
-          echo 'EXTRA_CFLAGS += -Wno-incompatible-pointer-types'
-          echo 'EXTRA_CFLAGS += -Wno-uninitialized'
-          echo 'EXTRA_CFLAGS += -Wno-sometimes-uninitialized'
-          echo 'EXTRA_CFLAGS += -Wno-tautological-overlap-compare'
-          echo 'ccflags-y += -Wno-error'
-          echo 'ccflags-y += -Wno-cast-function-type'
-          echo 'ccflags-y += -Wno-incompatible-pointer-types'
-          echo 'ccflags-y += -Wno-uninitialized'
-          echo 'ccflags-y += -Wno-sometimes-uninitialized'
-          echo 'ccflags-y += -Wno-tautological-overlap-compare'
+          echo 'ccflags-y += -Wno-error -Wno-cast-function-type -Wno-incompatible-pointer-types'
+          echo 'ccflags-y += -Wno-uninitialized -Wno-sometimes-uninitialized -Wno-tautological-overlap-compare'
         } >> drivers/net/wireless/realtek/rtl8812au/Makefile               
         
-        # 6. GKI PREBUILT BYPASS: Stub restricted File I/O functions using compile-time macros        
+        # GKI PREBUILT BYPASS: Stub restricted File I/O functions      
         {
-          echo 'EXTRA_CFLAGS += -Dfilp_open=filp_open_dummy'
-          echo 'EXTRA_CFLAGS += -Dkernel_read=kernel_read_dummy'
-          echo 'EXTRA_CFLAGS += -Dkernel_write=kernel_write_dummy'
+          echo 'ccflags-y += -Dfilp_open=filp_open_dummy'
+          echo 'ccflags-y += -Dkernel_read=kernel_read_dummy'
+          echo 'ccflags-y += -Dkernel_write=kernel_write_dummy'
         } >> drivers/net/wireless/realtek/rtl8812au/Makefile                
         
-        # Inject the dummy fallback functions directly into the driver's OS dependency file        
         OSDEP_FILE=$(find drivers/net/wireless/realtek/rtl8812au -name "osdep_service.c" | head -n 1)        
         {
           echo '/* GKI PREBUILT BYPASS - STUB FILE I/O */'
           echo '#include <linux/fs.h>'
           echo '#include <linux/err.h>'
           echo '#include <linux/errno.h>'
-          echo 'struct file *filp_open_dummy(const char *filename, int flags, umode_t mode) {'
-          echo '    return ERR_PTR(-ENOENT);'
-          echo '}'
-          echo 'ssize_t kernel_read_dummy(struct file *file, void *buf, size_t count, loff_t *pos) {'
-          echo '    return -EIO;'
-          echo '}'
-          echo 'ssize_t kernel_write_dummy(struct file *file, const void *buf, size_t count, loff_t *pos) {'
-          echo '    return -EIO;'
-          echo '}'
-        } >> "$OSDEP_FILE"                
-        
-        # 7. Apply deterministic Python patch for Linux 6.1 cfg80211 API changes
-        {
-          echo 'import sys'
-          echo 'path = "drivers/net/wireless/realtek/rtl8812au/os_dep/linux/ioctl_cfg80211.c"'
-          echo 'with open(path, "r") as f:'
-          echo '    code = f.read()'
-          echo 'target1 = "cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false);"'
-          echo 'replacement1 = "cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false, 0);"'
-          echo 'target2 = "cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0);"'
-          echo 'replacement2 = "cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0, 0);"'
-          echo 'code = code.replace(target1, replacement1)'
-          echo 'code = code.replace(target2, replacement2)'
-          echo 'with open(path, "w") as f:'
-          echo '    f.write(code)'
-        } > patch_cfg80211.py
-        python3 patch_cfg80211.py
-        
-        # 8. Fix KCFI (Control Flow Integrity) Kernel Panics on TX Injection
-        find drivers/net/wireless/realtek/rtl8812au -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i -E 's/\bint(\s+rtw_xmit_entry)/netdev_tx_t\1/g' {} +
-        find drivers/net/wireless/realtek/rtl8812au -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i -E 's/\bint(\s+_rtw_xmit_entry)/netdev_tx_t\1/g' {} +
-        find drivers/net/wireless/realtek/rtl8812au -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i -E 's/\bint(\s+rtw_monitor_xmit_entry)/netdev_tx_t\1/g' {} +
+          echo 'struct file *filp_open_dummy(const char *filename, int flags, umode_t mode) { return ERR_PTR(-ENOENT); }'
+          echo 'ssize_t kernel_read_dummy(struct file *file, void *buf, size_t count, loff_t *pos) { return -EIO; }'
+          echo 'ssize_t kernel_write_dummy(struct file *file, const void *buf, size_t count, loff_t *pos) { return -EIO; }'
+        } >> "$OSDEP_FILE"
     
     - name: Apply KernelSU Next Patches & Configs      
       run: |        
@@ -149,14 +102,11 @@ jobs:
         
         # 2. Append configs cleanly (NetHunter Arsenal + AFWall+ Logging)
         {
-          echo '# Kernel Name Override (About Phone)'
-          echo "CONFIG_LOCALVERSION=\"${{ env.CUSTOM_LOCALVERSION }}\""
-
           echo '# Inline KernelSU Next'
           echo 'CONFIG_KSU=y'
           echo 'CONFIG_TRIM_NONLISTED_KMI=n'
           
-          echo '# USB ConfigFS & HID Arsenal (BadUSB / DriveDroid)'
+          echo '# USB ConfigFS & HID Arsenal'
           echo 'CONFIG_CONFIGFS_FS=y'
           echo 'CONFIG_USB_CONFIGFS=y'
           echo 'CONFIG_USB_GADGETFS=y'
@@ -167,7 +117,7 @@ jobs:
           echo 'CONFIG_USB_CONFIGFS_RNDIS=y'
           echo 'CONFIG_USB_CONFIGFS_NCM=y'
           
-          echo '# AFWall+ & Netfilter Logging (SAFE FOR EBPF)'
+          echo '# AFWall+ & Netfilter Logging'
           echo 'CONFIG_NETFILTER_NETLINK_LOG=y'
           echo 'CONFIG_NETFILTER_NETLINK_QUEUE=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_LOG=y'
@@ -178,7 +128,7 @@ jobs:
           echo 'CONFIG_NETFILTER_XT_MATCH_MARK=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_MARK=y'
           
-          echo '# NAT, Packet Mangling & WireGuard'
+          echo '# NAT & WireGuard'
           echo 'CONFIG_IP_NF_NAT=y'
           echo 'CONFIG_IP6_NF_NAT=y'
           echo 'CONFIG_IP_NF_MANGLE=y'
@@ -186,10 +136,17 @@ jobs:
           echo 'CONFIG_NETFILTER_XT_TARGET_MASQUERADE=y'
           echo 'CONFIG_WIREGUARD=y'
           
-          echo '# Wireless Drivers (Realtek Only to prevent Symbol Linking Errors)'
+          echo '# Future-Proof Wireless Drivers'
           echo 'CONFIG_CFG80211=y'
           echo 'CONFIG_MAC80211=y'
           echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
+          echo 'CONFIG_WLAN_VENDOR_ATH=y'
+          echo 'CONFIG_ATH9K_HTC=m'
+          echo 'CONFIG_WLAN_VENDOR_MEDIATEK=y'
+          echo 'CONFIG_MT7601U=m'
+          echo 'CONFIG_MT76x0U=m'
+          echo 'CONFIG_MT76x2U=m'
+          echo 'CONFIG_MT7921U=m'
           echo 'CONFIG_BT_HCIBTUSB=m'
         } >> arch/arm64/configs/gki_defconfig    
 
@@ -286,12 +243,12 @@ jobs:
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
         
-        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/88XXau.ko drivers/bluetooth/btintel.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btrtl.ko' //private/devices/google/shusky:kernel
+        ./buildozer 'add module_outs drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76-connac-lib.ko drivers/net/wireless/mediatek/mt76/mt76x0/mt76x0u.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt7921/mt7921u.ko drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.ko drivers/net/wireless/ath/ath.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/net/wireless/mediatek/mt76/mt76x0/mt76x0-common.ko drivers/net/wireless/realtek/rtl8812au/8812au.ko' //private/devices/google/shusky:kernel
         
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
         cd workspace        
-        BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode" ./build_shusky.sh    
+        BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode --kleaf_localversion=-${{ env.CUSTOM_KERNEL_VERSION }}" ./build_shusky.sh    
     
     - name: Package Kernel and Silent Driver Injector      
       run: |        
@@ -311,10 +268,7 @@ jobs:
         
         mkdir -p AnyKernel3/twk_drivers        
         
-        find out/shusky/dist -name "88XXau.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
-        
-        echo "VERIFYING DRIVER EXTRACTION:"
-        ls -la AnyKernel3/twk_drivers/
+        find out/shusky/dist -name "8812au.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
         
         sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh                
         
@@ -334,7 +288,7 @@ jobs:
           echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
           echo 'echo "description=Auto-injected driver overlay for Kali NetHunter." >> $MOD_DIR/module.prop'
           echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
-          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/88XXau.ko" >> $MOD_DIR/service.sh'
+          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/8812au.ko" >> $MOD_DIR/service.sh'
           echo 'chmod +x $MOD_DIR/service.sh'
           echo 'ui_print "- Drivers integrated successfully!";'
           echo '# ----------------------------------------------'
@@ -377,3 +331,4 @@ jobs:
     - name: Ping Phone - Failure
       if: failure()
       run: curl -d "❌ Pixel 8 Pro Kernel Build FAILED! Check the logs." https://ntfy.sh/twk_pixel8_build_alerts
+      
