@@ -64,9 +64,8 @@ jobs:
         
         chmod u+w drivers/net/wireless/realtek/Makefile                
         
-        # Clone the modern Morrownr repository fork
-        git clone https://github.com/stoag/8812au-20210820.git /tmp/rtl_repo
-        # git clone https://github.com/morrownr/8812au-20210820.git /tmp/rtl_repo                
+        # Clone your custom Stoag repository fork
+        git clone https://github.com/stoag/8812au-20210820.git /tmp/rtl_repo                
         mv /tmp/rtl_repo drivers/net/wireless/realtek/rtl8812au        
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
         
@@ -82,23 +81,16 @@ jobs:
         sed -i '/Wno-stringop-/d' drivers/net/wireless/realtek/rtl8812au/Makefile
         sed -i '/Wno-array-bounds/d' drivers/net/wireless/realtek/rtl8812au/Makefile
         
-        # 4. Inject strict Clang 18 warning suppressions
-        sed -i 's/EXTRA_CFLAGS += -O3/EXTRA_CFLAGS += -O3 -Wno-error -Wno-unknown-warning-option -Wno-cast-function-type -Wno-incompatible-pointer-types -Wno-uninitialized -Wno-sometimes-uninitialized -Wno-tautological-overlap-compare -Wno-date-time/g' drivers/net/wireless/realtek/rtl8812au/Makefile
-
-        # 5. THE NUCLEAR INCLUDE FIX: Hardcode $(src) and $(PWD) to the absolute Bazel path
-        sed -i 's|$(src)|drivers/net/wireless/realtek/rtl8812au|g' drivers/net/wireless/realtek/rtl8812au/Makefile
-        sed -i 's|$(PWD)|drivers/net/wireless/realtek/rtl8812au|g' drivers/net/wireless/realtek/rtl8812au/Makefile
-        
-        # 6. FIX MORROWNR C-CODE SYNTAX ERRORS
-        sed -i 's/#elseif/#elif/g' drivers/net/wireless/realtek/rtl8812au/include/rtw_mlme_ext.h
-        sed -i 's/u8 \*buf_star;/u8 \*buf_star = NULL;/g' drivers/net/wireless/realtek/rtl8812au/include/rtw_recv.h
-
-        # 7. GKI PREBUILT BYPASS: Stub restricted File I/O functions and add halrf include path      
+        # 4. Inject strict Clang 18 warning suppressions, absolute Bazel include paths, and I/O bypasses      
         {
-          echo 'EXTRA_CFLAGS += -Dfilp_open=filp_open_dummy'
-          echo 'EXTRA_CFLAGS += -Dkernel_read=kernel_read_dummy'
-          echo 'EXTRA_CFLAGS += -Dkernel_write=kernel_write_dummy'
-          echo 'EXTRA_CFLAGS += -Idrivers/net/wireless/realtek/rtl8812au/hal/phydm/halrf'
+          echo 'ccflags-y += -I$(srctree)/drivers/net/wireless/realtek/rtl8812au/include'
+          echo 'ccflags-y += -I$(srctree)/drivers/net/wireless/realtek/rtl8812au/hal/phydm'
+          echo 'ccflags-y += -I$(srctree)/drivers/net/wireless/realtek/rtl8812au/hal/btc'
+          echo 'ccflags-y += -I$(srctree)/drivers/net/wireless/realtek/rtl8812au/hal/phydm/halrf'
+          echo 'ccflags-y += -Wno-error -Wno-unknown-warning-option -Wno-cast-function-type -Wno-incompatible-pointer-types -Wno-uninitialized -Wno-sometimes-uninitialized -Wno-tautological-overlap-compare -Wno-date-time'
+          echo 'ccflags-y += -Dfilp_open=filp_open_dummy'
+          echo 'ccflags-y += -Dkernel_read=kernel_read_dummy'
+          echo 'ccflags-y += -Dkernel_write=kernel_write_dummy'
         } >> drivers/net/wireless/realtek/rtl8812au/Makefile                
         
         OSDEP_FILE=$(find drivers/net/wireless/realtek/rtl8812au -name "osdep_service.c" | head -n 1)        
