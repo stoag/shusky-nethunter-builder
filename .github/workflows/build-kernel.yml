@@ -77,7 +77,12 @@ jobs:
         sed -i 's/CONFIG_PLATFORM_ARM_AARCH64 = n/CONFIG_PLATFORM_ARM_AARCH64 = y/g' drivers/net/wireless/realtek/rtl8812au/Makefile
         
         # 3. Suppress strict Clang 18 warnings completely
-        sed -i 's/EXTRA_CFLAGS += -O3/EXTRA_CFLAGS += -O3 -Wno-error -Wno-cast-function-type -Wno-incompatible-pointer-types -Wno-uninitialized -Wno-sometimes-uninitialized -Wno-tautological-overlap-compare -Wno-date-time/g' drivers/net/wireless/realtek/rtl8812au/Makefile
+        sed -i 's/EXTRA_CFLAGS += -O3/EXTRA_CFLAGS += -O3 -Wno-error -Wno-unknown-warning-option -Wno-cast-function-type -Wno-incompatible-pointer-types -Wno-uninitialized -Wno-sometimes-uninitialized -Wno-tautological-overlap-compare -Wno-date-time/g' drivers/net/wireless/realtek/rtl8812au/Makefile
+        
+        # Remove flags Android's Clang doesn't recognize
+        sed -i 's/-Wno-enum-int-mismatch//g' drivers/net/wireless/realtek/rtl8812au/Makefile
+        sed -i 's/-Wno-stringop-overread//g' drivers/net/wireless/realtek/rtl8812au/Makefile
+        sed -i 's/-Wno-stringop-truncation//g' drivers/net/wireless/realtek/rtl8812au/Makefile
         
         # 4. GKI PREBUILT BYPASS: Stub restricted File I/O functions      
         {
