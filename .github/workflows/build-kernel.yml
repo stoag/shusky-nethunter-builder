@@ -97,7 +97,7 @@ jobs:
         # 1. Inject KernelSU Next inline source code        
         curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -                
         
-        # 2. Append configs cleanly (NetHunter Arsenal + AFWall+ Logging)
+        # 2. Append configs cleanly (NetHunter Core + AFWall+ Logging)
         {
           echo '# Inline KernelSU Next'
           echo 'CONFIG_KSU=y'
@@ -133,17 +133,9 @@ jobs:
           echo 'CONFIG_NETFILTER_XT_TARGET_MASQUERADE=y'
           echo 'CONFIG_WIREGUARD=y'
           
-          echo '# Future-Proof Wireless Drivers'
+          echo '# Core Wireless Subsystems'
           echo 'CONFIG_CFG80211=y'
           echo 'CONFIG_MAC80211=y'
-          echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
-          echo 'CONFIG_WLAN_VENDOR_ATH=y'
-          echo 'CONFIG_ATH9K_HTC=m'
-          echo 'CONFIG_WLAN_VENDOR_MEDIATEK=y'
-          echo 'CONFIG_MT7601U=m'
-          echo 'CONFIG_MT76x0U=m'
-          echo 'CONFIG_MT76x2U=m'
-          echo 'CONFIG_MT7921U=m'
           echo 'CONFIG_BT_HCIBTUSB=m'
         } >> arch/arm64/configs/gki_defconfig    
 
@@ -167,7 +159,6 @@ jobs:
           echo 'btbcm_setup_apple'
           echo 'btbcm_setup_patchram'
           echo 'device_release_driver'
-          echo 'firmware_request_cache'
           echo 'flush_signals'
           echo 'gpiod_get_optional'
           echo 'gpiod_put'
@@ -241,7 +232,7 @@ jobs:
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
         
-        ./buildozer 'add module_outs drivers/net/wireless/mediatek/mt7601u/mt7601u.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76-connac-lib.ko drivers/net/wireless/mediatek/mt76/mt76x0/mt76x0u.ko drivers/net/wireless/ath/ath9k/ath9k_htc.ko drivers/misc/eeprom/eeprom_93cx6.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt7921/mt7921u.ko drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.ko drivers/net/wireless/ath/ath.ko drivers/net/wireless/realtek/rtl818x/rtl8187/rtl8187.ko drivers/net/wireless/ath/ath9k/ath9k_hw.ko drivers/net/wireless/mediatek/mt76/mt76x0/mt76x0-common.ko drivers/net/wireless/realtek/rtl8812au/8812au.ko' //private/devices/google/shusky:kernel
+        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko' //private/devices/google/shusky:kernel
         
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
