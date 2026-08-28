@@ -84,15 +84,20 @@ jobs:
         # 4. Inject strict Clang 18 warning suppressions
         sed -i 's/EXTRA_CFLAGS += -O3/EXTRA_CFLAGS += -O3 -Wno-error -Wno-unknown-warning-option -Wno-cast-function-type -Wno-incompatible-pointer-types -Wno-uninitialized -Wno-sometimes-uninitialized -Wno-tautological-overlap-compare -Wno-date-time/g' drivers/net/wireless/realtek/rtl8812au/Makefile
 
-        # 5. SURGICAL INCLUDE FIX: Only replace paths attached to compiler include flags (-I)
-        sed -i 's|-I$(PWD)|-I$(srctree)/drivers/net/wireless/realtek/rtl8812au|g' drivers/net/wireless/realtek/rtl8812au/Makefile
-        sed -i 's|-I$(src)|-I$(srctree)/drivers/net/wireless/realtek/rtl8812au|g' drivers/net/wireless/realtek/rtl8812au/Makefile
+        # 5. THE NUCLEAR INCLUDE FIX: Hardcode $(src) and $(PWD) to the absolute Bazel path
+        sed -i 's|$(src)|drivers/net/wireless/realtek/rtl8812au|g' drivers/net/wireless/realtek/rtl8812au/Makefile
+        sed -i 's|$(PWD)|drivers/net/wireless/realtek/rtl8812au|g' drivers/net/wireless/realtek/rtl8812au/Makefile
         
-        # 6. GKI PREBUILT BYPASS: Stub restricted File I/O functions      
+        # 6. FIX MORROWNR C-CODE SYNTAX ERRORS
+        sed -i 's/#elseif/#elif/g' drivers/net/wireless/realtek/rtl8812au/include/rtw_mlme_ext.h
+        sed -i 's/u8 \*buf_star;/u8 \*buf_star = NULL;/g' drivers/net/wireless/realtek/rtl8812au/include/rtw_recv.h
+
+        # 7. GKI PREBUILT BYPASS: Stub restricted File I/O functions and add halrf include path      
         {
           echo 'EXTRA_CFLAGS += -Dfilp_open=filp_open_dummy'
           echo 'EXTRA_CFLAGS += -Dkernel_read=kernel_read_dummy'
           echo 'EXTRA_CFLAGS += -Dkernel_write=kernel_write_dummy'
+          echo 'EXTRA_CFLAGS += -Idrivers/net/wireless/realtek/rtl8812au/hal/phydm/halrf'
         } >> drivers/net/wireless/realtek/rtl8812au/Makefile                
         
         OSDEP_FILE=$(find drivers/net/wireless/realtek/rtl8812au -name "osdep_service.c" | head -n 1)        
