@@ -64,8 +64,9 @@ jobs:
         
         chmod u+w drivers/net/wireless/realtek/Makefile                
         
-        # Clone the modern Morrownr repository        
-        git clone https://github.com/morrownr/8812au-20210820.git /tmp/rtl_repo                
+        # Clone the modern Morrownr repository fork
+        git clone https://github.com/stoag/8812au-20210820.git /tmp/rtl_repo
+        # git clone https://github.com/morrownr/8812au-20210820.git /tmp/rtl_repo                
         mv /tmp/rtl_repo drivers/net/wireless/realtek/rtl8812au        
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
         
