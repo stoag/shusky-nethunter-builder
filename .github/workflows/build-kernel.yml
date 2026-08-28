@@ -136,6 +136,7 @@ jobs:
           echo '# Core Wireless Subsystems'
           echo 'CONFIG_CFG80211=y'
           echo 'CONFIG_MAC80211=y'
+          echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
           echo 'CONFIG_BT_HCIBTUSB=m'
         } >> arch/arm64/configs/gki_defconfig    
 
