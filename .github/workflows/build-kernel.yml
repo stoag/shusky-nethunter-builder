@@ -83,10 +83,9 @@ jobs:
         
         # 4. Inject strict Clang 18 warning suppressions
         sed -i 's/EXTRA_CFLAGS += -O3/EXTRA_CFLAGS += -O3 -Wno-error -Wno-unknown-warning-option -Wno-cast-function-type -Wno-incompatible-pointer-types -Wno-uninitialized -Wno-sometimes-uninitialized -Wno-tautological-overlap-compare -Wno-date-time/g' drivers/net/wireless/realtek/rtl8812au/Makefile
-        
-        # 5. THE NUCLEAR INCLUDE FIX: Hardcode $(src) and $(PWD) to the absolute Bazel path
-        sed -i 's|$(src)|drivers/net/wireless/realtek/rtl8812au|g' drivers/net/wireless/realtek/rtl8812au/Makefile
-        sed -i 's|$(PWD)|drivers/net/wireless/realtek/rtl8812au|g' drivers/net/wireless/realtek/rtl8812au/Makefile
+
+        # 5. CONVERT OUT-OF-TREE VARIABLES TO IN-TREE LOGIC
+        sed -i 's/$(PWD)/$(src)/g' drivers/net/wireless/realtek/rtl8812au/Makefile
         
         # 6. GKI PREBUILT BYPASS: Stub restricted File I/O functions      
         {
