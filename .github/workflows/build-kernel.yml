@@ -163,6 +163,7 @@ jobs:
           echo 'hci_unregister_dev'
           echo 'iwe_stream_add_event'
           echo 'iwe_stream_add_point'
+          echo 'kern_path'
           echo 'kernel_sigaction'
           echo 'kill_pid'
           echo 'led_trigger_blink'
