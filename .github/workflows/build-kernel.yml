@@ -68,7 +68,7 @@ jobs:
         git clone https://github.com/stoag/8812au-20210820.git /tmp/rtl_repo                
         mv /tmp/rtl_repo drivers/net/wireless/realtek/rtl8812au   
         
-        # VERY IMPORTANT: Delete the .git folder so Bazel doesn't ignore the directory!
+        # VERY IMPORTANT: Delete the .git folder so Bazel tracks the directory into the sandbox
         rm -rf drivers/net/wireless/realtek/rtl8812au/.git
              
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
@@ -79,11 +79,6 @@ jobs:
         # 2. FORCE ARM64 PLATFORM
         sed -i 's/CONFIG_PLATFORM_I386_PC = y/CONFIG_PLATFORM_I386_PC = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
         sed -i 's/CONFIG_PLATFORM_ARM_AARCH64 = n/CONFIG_PLATFORM_ARM_AARCH64 = y/g' drivers/net/wireless/realtek/rtl8812au/Makefile
-        
-        # 3. STRIP NESTED INCLUDE DIRECTORIES FROM C CODE 
-        # (This forces the compiler to look directly in the folders we specify below)
-        find drivers/net/wireless/realtek/rtl8812au/hal -type f -exec sed -i 's|#include "halrf/|#include "|g' {} +
-        find drivers/net/wireless/realtek/rtl8812au/hal -type f -exec sed -i 's|#include "phydm/|#include "|g' {} +
     
     - name: Apply KernelSU Next Patches & Configs      
       run: |        
