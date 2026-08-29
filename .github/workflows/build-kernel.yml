@@ -80,42 +80,10 @@ jobs:
         sed -i 's/CONFIG_PLATFORM_I386_PC = y/CONFIG_PLATFORM_I386_PC = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
         sed -i 's/CONFIG_PLATFORM_ARM_AARCH64 = n/CONFIG_PLATFORM_ARM_AARCH64 = y/g' drivers/net/wireless/realtek/rtl8812au/Makefile
         
-        # 3. Purge GCC-specific warning flags that crash Android's strict Clang compiler
-        sed -i '/Wno-enum-int-mismatch/d' drivers/net/wireless/realtek/rtl8812au/Makefile
-        sed -i '/Wno-stringop-/d' drivers/net/wireless/realtek/rtl8812au/Makefile
-        sed -i '/Wno-array-bounds/d' drivers/net/wireless/realtek/rtl8812au/Makefile
-        
-        # 4. Inject strict Clang 18 warning suppressions
-        sed -i 's/EXTRA_CFLAGS += -O3/EXTRA_CFLAGS += -O3 -Wno-error -Wno-unknown-warning-option -Wno-cast-function-type -Wno-incompatible-pointer-types -Wno-uninitialized -Wno-sometimes-uninitialized -Wno-tautological-overlap-compare -Wno-date-time/g' drivers/net/wireless/realtek/rtl8812au/Makefile
-
-        # 5. STRIP NESTED INCLUDE DIRECTORIES FROM C CODE 
+        # 3. STRIP NESTED INCLUDE DIRECTORIES FROM C CODE 
         # (This forces the compiler to look directly in the folders we specify below)
         find drivers/net/wireless/realtek/rtl8812au/hal -type f -exec sed -i 's|#include "halrf/|#include "|g' {} +
         find drivers/net/wireless/realtek/rtl8812au/hal -type f -exec sed -i 's|#include "phydm/|#include "|g' {} +
-
-        # 6. UNIVERSAL KBUILD INCLUDES AND I/O BYPASSES
-        # (We append these cleanly to the bottom to override any broken variables in the Makefile)
-        {
-          echo 'ccflags-y += -I$(srctree)/drivers/net/wireless/realtek/rtl8812au/include'
-          echo 'ccflags-y += -I$(srctree)/drivers/net/wireless/realtek/rtl8812au/hal/phydm'
-          echo 'ccflags-y += -I$(srctree)/drivers/net/wireless/realtek/rtl8812au/hal/btc'
-          echo 'ccflags-y += -I$(srctree)/drivers/net/wireless/realtek/rtl8812au/hal/phydm/halrf'
-          echo 'ccflags-y += -I$(srctree)/drivers/net/wireless/realtek/rtl8812au/hal/phydm/phydm'
-          echo 'ccflags-y += -Dfilp_open=filp_open_dummy'
-          echo 'ccflags-y += -Dkernel_read=kernel_read_dummy'
-          echo 'ccflags-y += -Dkernel_write=kernel_write_dummy'
-        } >> drivers/net/wireless/realtek/rtl8812au/Makefile                
-        
-        OSDEP_FILE=$(find drivers/net/wireless/realtek/rtl8812au -name "osdep_service.c" | head -n 1)        
-        {
-          echo '/* GKI PREBUILT BYPASS - STUB FILE I/O */'
-          echo '#include <linux/fs.h>'
-          echo '#include <linux/err.h>'
-          echo '#include <linux/errno.h>'
-          echo 'struct file *filp_open_dummy(const char *filename, int flags, umode_t mode) { return ERR_PTR(-ENOENT); }'
-          echo 'ssize_t kernel_read_dummy(struct file *file, void *buf, size_t count, loff_t *pos) { return -EIO; }'
-          echo 'ssize_t kernel_write_dummy(struct file *file, const void *buf, size_t count, loff_t *pos) { return -EIO; }'
-        } >> "$OSDEP_FILE"
     
     - name: Apply KernelSU Next Patches & Configs      
       run: |        
