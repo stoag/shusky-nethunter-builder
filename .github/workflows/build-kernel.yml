@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest    
     env:      
       # Release Version
-      CUSTOM_KERNEL_VERSION: "twk.v1.04"          
+      CUSTOM_KERNEL_VERSION: "1.04"          
     steps:    
     - name: Free Runner Disk Space      
       run: |        
@@ -68,7 +68,7 @@ jobs:
         git clone https://github.com/stoag/8812au-20210820.git /tmp/rtl_repo                
         mv /tmp/rtl_repo drivers/net/wireless/realtek/rtl8812au   
         
-        # VERY IMPORTANT: Delete the .git folder so Bazel tracks the directory into the sandbox
+        # Delete the .git folder so Bazel tracks the directory into the sandbox
         rm -rf drivers/net/wireless/realtek/rtl8812au/.git
              
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
@@ -85,6 +85,9 @@ jobs:
         
         # 2. Append configs cleanly (NetHunter Core + AFWall+ Logging)
         {
+          echo '# Custom Kernel Signature'
+          echo 'CONFIG_LOCALVERSION="-twk.v${{ env.CUSTOM_KERNEL_VERSION }}"'
+          
           echo '# Inline KernelSU Next'
           echo 'CONFIG_KSU=y'
           echo 'CONFIG_TRIM_NONLISTED_KMI=n'
@@ -226,15 +229,17 @@ jobs:
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
         cd workspace/aosp
-        sed -i "s/^EXTRAVERSION.*/EXTRAVERSION = -${{ env.CUSTOM_KERNEL_VERSION }}/" Makefile
+        sed -i "s/^EXTRAVERSION.*/EXTRAVERSION = -twk.v${{ env.CUSTOM_KERNEL_VERSION }}/" Makefile
         
         cd ..        
-        BUILD_AOSP_KERNEL=1 ./build_shusky.sh --notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode --kleaf_localversion=-${{ env.CUSTOM_KERNEL_VERSION }}
+        BUILD_AOSP_KERNEL=1 ./build_shusky.sh --notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode --kleaf_localversion=-twk.v${{ env.CUSTOM_KERNEL_VERSION }}
     
-    - name: Package Kernel and Silent Driver Injector      
+    - name: Package Kernel, Drivers, and Partitions into Unified Release
       run: |        
         cd workspace                
+        mkdir -p bundle
         
+        # 1. Setup AnyKernel3
         git clone https://github.com/stoag/AnyKernel3-Pixel8Pro.git AnyKernel3                
         
         wget -qO AnyKernel3/tools/busybox https://raw.githubusercontent.com/xerta555/Busybox-Binaries/master/busybox-arm64        
@@ -246,12 +251,10 @@ jobs:
         rm magisk.zip                
         
         cp out/shusky/dist/Image.lz4 AnyKernel3/                
-        
         mkdir -p AnyKernel3/twk_drivers        
-        
         find out/shusky/dist -name "8812au.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
         
-        sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh                
+        sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (v${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh                
         
         {
           echo '# --- TWEAKER KERNEL SILENT DRIVER INJECTION ---'
@@ -264,7 +267,7 @@ jobs:
           echo 'cp -f $home/twk_drivers/*.ko $MOD_DIR/system/vendor/lib/modules/'
           echo 'echo "id=twk_nethunter_drivers" > $MOD_DIR/module.prop'
           echo 'echo "name=Tweaker Kernel NetHunter Drivers" >> $MOD_DIR/module.prop'
-          echo 'echo "version=${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
+          echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
           echo 'echo "versionCode=104" >> $MOD_DIR/module.prop'
           echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
           echo 'echo "description=Auto-injected driver overlay for Kali NetHunter." >> $MOD_DIR/module.prop'
@@ -275,39 +278,34 @@ jobs:
           echo '# ----------------------------------------------'
         } >> AnyKernel3/anykernel.sh                
         
+        # 2. Package AK3 zip into the bundle
         cd AnyKernel3        
-        zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-AK3-Boot.zip * -x README.md        
+        zip -r9 ../bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-anykernel3.zip * -x README.md        
         cd ..    
 
-    - name: Package Custom Partition Images
-      run: |
-        cd workspace
-        mkdir -p custom_partitions
-        echo "Hunting down Bazel's hidden partition images..."
+        # 3. Extract and Rename Partition Images into the bundle
+        find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_dkms.img \;
+        find out/ -type f -name "vendor_kernel_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_kernel_boot.img \;
+        find out/ -type f -name "system_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-system_dlkm.img \;
         
-        find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} custom_partitions/ \;
-        find out/ -type f -name "system_dlkm.img" -exec cp -L {} custom_partitions/ \;
-        find out/ -type f -name "vendor_kernel_boot.img" -exec cp -L {} custom_partitions/ \;
+        # 4. Create Master Release Zip
+        cd bundle
+        zip -r9 ../twk-v${{ env.CUSTOM_KERNEL_VERSION }}-complete-package.zip *
+        cd ..
         
-        echo "VERIFYING EXTRACTED PARTITIONS:"
-        ls -lh custom_partitions/
+        echo "VERIFYING BUNDLE CONTENTS:"
+        ls -lh bundle/
 
-    - name: Upload Custom Partition Images
+    - name: Upload Complete Release Package
       uses: actions/upload-artifact@v4
       with:
-        name: Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Partitions
-        path: workspace/custom_partitions/*.img
-    
-    - name: Upload Single Kernel Release Zip      
-      uses: actions/upload-artifact@v4      
-      with:        
-        name: Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Release        
-        path: workspace/*AK3-Boot.zip        
+        name: twk-v${{ env.CUSTOM_KERNEL_VERSION }}-release-package
+        path: workspace/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-complete-package.zip
         if-no-files-found: error
 
     - name: Ping Phone - Success
       if: success()
-      run: curl -d "✅ Pixel 8 Pro Kernel Build COMPLETE! Wake up and grab the ZIP!" https://ntfy.sh/twk_pixel8_build_alerts
+      run: curl -d "✅ Pixel 8 Pro Kernel v${{ env.CUSTOM_KERNEL_VERSION }} Build COMPLETE! Grab the single ZIP package!" https://ntfy.sh/twk_pixel8_build_alerts
 
     - name: Ping Phone - Failure
       if: failure()
