@@ -232,7 +232,7 @@ jobs:
         sed -i "s/^EXTRAVERSION.*/EXTRAVERSION = -twk.v${{ env.CUSTOM_KERNEL_VERSION }}/" Makefile
         
         cd ..        
-        BUILD_AOSP_KERNEL=1 ./build_shusky.sh --notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode --kleaf_localversion=-twk.v${{ env.CUSTOM_KERNEL_VERSION }}
+        BUILD_AOSP_KERNEL=1 ./build_shusky.sh --notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode
     
     - name: Package Kernel, Drivers, and Partitions into Unified Release
       run: |        
@@ -284,7 +284,7 @@ jobs:
         cd ..    
 
         # 3. Extract and Rename Partition Images into the bundle
-        find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_dkms.img \;
+        find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_dlkm.img \;
         find out/ -type f -name "vendor_kernel_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_kernel_boot.img \;
         find out/ -type f -name "system_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-system_dlkm.img \;
         
