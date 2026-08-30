@@ -232,7 +232,7 @@ jobs:
         sed -i "s/^EXTRAVERSION.*/EXTRAVERSION = -twk.v${{ env.CUSTOM_KERNEL_VERSION }}/" Makefile
         
         cd ..        
-        BUILD_AOSP_KERNEL=1 ./build_shusky.sh --notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode
+        BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode" ./build_shusky.sh
     
     - name: Package Kernel, Drivers, and Partitions into Unified Release
       run: |        
