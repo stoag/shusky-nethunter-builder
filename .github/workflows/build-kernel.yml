@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest    
     env:      
       # Release Version
-      CUSTOM_KERNEL_VERSION: "twk.v1.03"          
+      CUSTOM_KERNEL_VERSION: "twk.v1.04"          
     steps:    
     - name: Free Runner Disk Space      
       run: |        
@@ -75,10 +75,6 @@ jobs:
         
         # 1. FORCE THE BUILD TO OCCUR
         sed -i '1i CONFIG_RTL8812AU=m' drivers/net/wireless/realtek/rtl8812au/Makefile
-        
-        # 2. FORCE ARM64 PLATFORM
-        sed -i 's/CONFIG_PLATFORM_I386_PC = y/CONFIG_PLATFORM_I386_PC = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
-        sed -i 's/CONFIG_PLATFORM_ARM_AARCH64 = n/CONFIG_PLATFORM_ARM_AARCH64 = y/g' drivers/net/wireless/realtek/rtl8812au/Makefile
     
     - name: Apply KernelSU Next Patches & Configs      
       run: |        
@@ -226,11 +222,14 @@ jobs:
         chmod +x buildozer
         
         ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
-            
+        
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
-        cd workspace        
-        BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode --kleaf_localversion=-${{ env.CUSTOM_KERNEL_VERSION }}" ./build_shusky.sh    
+        cd workspace/aosp
+        sed -i "s/^EXTRAVERSION.*/EXTRAVERSION = -${{ env.CUSTOM_KERNEL_VERSION }}/" Makefile
+        
+        cd ..        
+        BUILD_AOSP_KERNEL=1 ./build_shusky.sh --notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode --kleaf_localversion=-${{ env.CUSTOM_KERNEL_VERSION }}
     
     - name: Package Kernel and Silent Driver Injector      
       run: |        
@@ -266,7 +265,7 @@ jobs:
           echo 'echo "id=twk_nethunter_drivers" > $MOD_DIR/module.prop'
           echo 'echo "name=Tweaker Kernel NetHunter Drivers" >> $MOD_DIR/module.prop'
           echo 'echo "version=${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-          echo 'echo "versionCode=103" >> $MOD_DIR/module.prop'
+          echo 'echo "versionCode=104" >> $MOD_DIR/module.prop'
           echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
           echo 'echo "description=Auto-injected driver overlay for Kali NetHunter." >> $MOD_DIR/module.prop'
           echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
