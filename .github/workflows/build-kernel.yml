@@ -224,8 +224,8 @@ jobs:
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
         
-        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko' //private/devices/google/shusky:kernel
-        
+        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
+            
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
         cd workspace        
