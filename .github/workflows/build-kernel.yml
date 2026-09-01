@@ -60,20 +60,17 @@ jobs:
         rm -rf drivers/net/wireless/realtek/rtw88
         rm -rf drivers/net/wireless/realtek/rtl8812au
         
-        # Bring back the dummy rtw88 Kconfig so the parent directory doesn't panic
-        mkdir -p drivers/net/wireless/realtek/rtw88
-        touch drivers/net/wireless/realtek/rtw88/Kconfig
-        
         # Clone YOUR specific fork of the repository
         git clone https://github.com/stoag/8812au-20210820.git drivers/net/wireless/realtek/rtl8812au
         
         # Delete the .git folder so Bazel tracks it cleanly
         rm -rf drivers/net/wireless/realtek/rtl8812au/.git
         
-        # Bypass Kconfig entirely by hardcoding the module build target
-        sed -i 's/obj-$(CONFIG_RTL8812AU) := $(MODULE_NAME).o/obj-m := $(MODULE_NAME).o/g' drivers/net/wireless/realtek/rtl8812au/Makefile
-             
-        echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
+        # Force Kbuild to step into our out-of-tree driver directory
+        echo 'obj-y += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
+        
+        # Bypass Kconfig entirely by hardcoding the module build target to the bottom
+        echo 'obj-m := $(MODULE_NAME).o' >> drivers/net/wireless/realtek/rtl8812au/Makefile
     
     - name: Apply KernelSU Next Patches & Configs      
       run: |        
@@ -124,6 +121,7 @@ jobs:
           echo '# Core Wireless Subsystems'
           echo 'CONFIG_CFG80211=y'
           echo 'CONFIG_MAC80211=y'
+          echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
           echo 'CONFIG_BT_HCIBTUSB=m'
         } >> arch/arm64/configs/gki_defconfig    
 
