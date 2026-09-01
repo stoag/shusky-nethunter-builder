@@ -209,6 +209,8 @@ jobs:
           echo 'usb_unanchor_urb'
           echo 'wake_up_bit'
           echo 'yield'
+          echo 'sdio_align_size'
+          echo 'skb_copy_header'
         } > missing_symbols.txt
         
         for list_file in aosp/android/abi_gki_aarch64 aosp/android/abi_gki_aarch64_pixel aosp/android/abi_gki_aarch64_core aosp/android/abi_gki_aarch64_virtual_device; do
