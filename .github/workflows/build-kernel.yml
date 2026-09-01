@@ -73,6 +73,9 @@ jobs:
         
         # Delete the .git folder so Bazel tracks the directory into the sandbox
         rm -rf drivers/net/wireless/realtek/rtw88/.git
+        
+        # Generate a dummy Kconfig to satisfy the parent directory's strict build checks
+        touch drivers/net/wireless/realtek/rtw88/Kconfig
              
         echo 'obj-m += rtw88/' >> drivers/net/wireless/realtek/Makefile                
     
