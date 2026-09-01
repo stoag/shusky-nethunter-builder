@@ -69,6 +69,9 @@ jobs:
         
         # Delete the .git folder so Bazel tracks it cleanly
         rm -rf drivers/net/wireless/realtek/rtl8812au/.git
+        
+        # Bypass Kconfig entirely by hardcoding the module build target
+        sed -i 's/obj-$(CONFIG_RTL8812AU) := $(MODULE_NAME).o/obj-m := $(MODULE_NAME).o/g' drivers/net/wireless/realtek/rtl8812au/Makefile
              
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
     
@@ -122,9 +125,6 @@ jobs:
           echo 'CONFIG_CFG80211=y'
           echo 'CONFIG_MAC80211=y'
           echo 'CONFIG_BT_HCIBTUSB=m'
-          
-          echo '# Trigger the monolithic driver build'
-          echo 'CONFIG_RTL8812AU=m'
         } >> arch/arm64/configs/gki_defconfig    
 
     - name: Authorize NetHunter Symbols in GKI
