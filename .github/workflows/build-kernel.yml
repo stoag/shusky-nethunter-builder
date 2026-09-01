@@ -58,23 +58,20 @@ jobs:
         find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +        
         sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig    
     
-    - name: Inject Custom Aircrack-ng RTL8812AU Fork
+    - name: Inject Upstream rtw88 Driver Stack
       run: |        
         cd workspace/aosp                
         
         chmod u+w drivers/net/wireless/realtek/Makefile                
         
-        # Clone your dedicated Aircrack-ng fork
-        git clone https://github.com/stoag/rtl8812au.git /tmp/rtl_repo                
-        mv /tmp/rtl_repo drivers/net/wireless/realtek/rtl8812au   
+        # Clone your new rtw88 backport fork
+        git clone https://github.com/stoag/rtw88.git /tmp/rtl_repo                
+        mv /tmp/rtl_repo drivers/net/wireless/realtek/rtw88   
         
         # Delete the .git folder so Bazel tracks the directory into the sandbox
-        rm -rf drivers/net/wireless/realtek/rtl8812au/.git
+        rm -rf drivers/net/wireless/realtek/rtw88/.git
              
-        echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
-        
-        # FORCE THE BUILD TO OCCUR
-        sed -i '1i CONFIG_88XXAU=m' drivers/net/wireless/realtek/rtl8812au/Makefile
+        echo 'obj-m += rtw88/' >> drivers/net/wireless/realtek/Makefile                
     
     - name: Apply KernelSU Next Patches & Configs      
       run: |        
@@ -217,14 +214,14 @@ jobs:
             fi
         done
 
-    - name: Track New Modules in Bazel
+    - name: Track Multi-Module rtw88 Stack in Bazel
       run: |
         cd workspace/aosp
         
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
         
-        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/88XXau.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
+        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtw88/rtw_core.ko drivers/net/wireless/realtek/rtw88/rtw_usb.ko drivers/net/wireless/realtek/rtw88/rtw_88xxa.ko drivers/net/wireless/realtek/rtw88/rtw_8812a.ko drivers/net/wireless/realtek/rtw88/rtw_8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
         
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
@@ -249,7 +246,9 @@ jobs:
         
         cp out/shusky/dist/Image.lz4 AnyKernel3/                
         mkdir -p AnyKernel3/twk_drivers        
-        find out/shusky/dist -name "88XXau.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
+        
+        # Copy the entire modular rtw88 stack
+        find out/shusky/dist -name "rtw_*.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
         
         sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (v${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh                
         
@@ -269,7 +268,14 @@ jobs:
           echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
           echo 'echo "description=Auto-injected driver overlay for Kali NetHunter." >> $MOD_DIR/module.prop'
           echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
-          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/88XXau.ko" >> $MOD_DIR/service.sh'
+          
+          # Inject modules sequentially to satisfy dependencies
+          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/rtw_core.ko" >> $MOD_DIR/service.sh'
+          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/rtw_usb.ko" >> $MOD_DIR/service.sh'
+          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/rtw_88xxa.ko" >> $MOD_DIR/service.sh'
+          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/rtw_8812a.ko" >> $MOD_DIR/service.sh'
+          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/rtw_8812au.ko" >> $MOD_DIR/service.sh'
+          
           echo 'chmod +x $MOD_DIR/service.sh'
           echo 'ui_print "- Drivers integrated successfully!";'
           echo '# ----------------------------------------------'
