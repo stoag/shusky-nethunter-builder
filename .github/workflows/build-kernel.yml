@@ -58,14 +58,14 @@ jobs:
         find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +        
         sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig    
     
-    - name: Inject Linux 6.1-Native RTL8812AU Driver
+    - name: Inject Custom Aircrack-ng RTL8812AU Fork
       run: |        
         cd workspace/aosp                
         
         chmod u+w drivers/net/wireless/realtek/Makefile                
         
-        # Clone your custom Stoag repository fork
-        git clone https://github.com/stoag/8812au-20210820.git /tmp/rtl_repo                
+        # Clone your dedicated Aircrack-ng fork
+        git clone https://github.com/stoag/rtl8812au.git /tmp/rtl_repo                
         mv /tmp/rtl_repo drivers/net/wireless/realtek/rtl8812au   
         
         # Delete the .git folder so Bazel tracks the directory into the sandbox
@@ -73,7 +73,7 @@ jobs:
              
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
         
-        # 1. FORCE THE BUILD TO OCCUR
+        # FORCE THE BUILD TO OCCUR
         sed -i '1i CONFIG_RTL8812AU=m' drivers/net/wireless/realtek/rtl8812au/Makefile
     
     - name: Apply KernelSU Next Patches & Configs      
@@ -234,7 +234,7 @@ jobs:
         cd ..        
         BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode" ./build_shusky.sh
     
-    - name: Package Kernel, Drivers, and Partitions into Unified Release
+    - name: Package Kernel, Drivers, and Partitions into Flat Bundle
       run: |        
         cd workspace                
         mkdir -p bundle
@@ -278,34 +278,29 @@ jobs:
           echo '# ----------------------------------------------'
         } >> AnyKernel3/anykernel.sh                
         
-        # 2. Package AK3 zip into the bundle
+        # 2. Package AK3 zip directly into the bundle folder
         cd AnyKernel3        
         zip -r9 ../bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-anykernel3.zip * -x README.md        
         cd ..    
 
-        # 3. Extract and Rename Partition Images into the bundle
+        # 3. Extract and Rename Partition Images directly into the bundle folder
         find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_dlkm.img \;
         find out/ -type f -name "vendor_kernel_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_kernel_boot.img \;
         find out/ -type f -name "system_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-system_dlkm.img \;
         
-        # 4. Create Master Release Zip
-        cd bundle
-        zip -r9 ../twk-v${{ env.CUSTOM_KERNEL_VERSION }}-complete-package.zip *
-        cd ..
-        
         echo "VERIFYING BUNDLE CONTENTS:"
         ls -lh bundle/
 
-    - name: Upload Complete Release Package
+    - name: Upload Flat Bundle Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: twk-v${{ env.CUSTOM_KERNEL_VERSION }}-release-package
-        path: workspace/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-complete-package.zip
+        path: workspace/bundle/*
         if-no-files-found: error
 
     - name: Ping Phone - Success
       if: success()
-      run: curl -d "✅ Pixel 8 Pro Kernel v${{ env.CUSTOM_KERNEL_VERSION }} Build COMPLETE! Grab the single ZIP package!" https://ntfy.sh/twk_pixel8_build_alerts
+      run: curl -d "✅ Pixel 8 Pro Kernel v${{ env.CUSTOM_KERNEL_VERSION }} Build COMPLETE! Grab the clean package files!" https://ntfy.sh/twk_pixel8_build_alerts
 
     - name: Ping Phone - Failure
       if: failure()
