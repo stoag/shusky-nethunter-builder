@@ -76,6 +76,10 @@ jobs:
         
         # Generate a dummy Kconfig to satisfy the parent directory's strict build checks
         touch drivers/net/wireless/realtek/rtw88/Kconfig
+        
+        # Surgically remove SDIO and PCI targets so the compiler ONLY builds the USB stack
+        sed -i '/rtw_sdio/d' drivers/net/wireless/realtek/rtw88/Makefile
+        sed -i '/rtw_pci/d' drivers/net/wireless/realtek/rtw88/Makefile
              
         echo 'obj-m += rtw88/' >> drivers/net/wireless/realtek/Makefile                
     
@@ -209,8 +213,6 @@ jobs:
           echo 'usb_unanchor_urb'
           echo 'wake_up_bit'
           echo 'yield'
-          echo 'sdio_align_size'
-          echo 'skb_copy_header'
         } > missing_symbols.txt
         
         for list_file in aosp/android/abi_gki_aarch64 aosp/android/abi_gki_aarch64_pixel aosp/android/abi_gki_aarch64_core aosp/android/abi_gki_aarch64_virtual_device; do
