@@ -1,4 +1,4 @@
-name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU Next + ConfigFS
+=name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU Next + ConfigFS
 
 on: 
   workflow_dispatch:
@@ -63,6 +63,9 @@ jobs:
         cd workspace/aosp                
         
         chmod u+w drivers/net/wireless/realtek/Makefile                
+        
+        # Nuke the stock kernel's native rtw88 directory to prevent nesting!
+        rm -rf drivers/net/wireless/realtek/rtw88
         
         # Clone your new rtw88 backport fork
         git clone https://github.com/stoag/rtw88.git /tmp/rtl_repo                
