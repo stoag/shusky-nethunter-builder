@@ -225,11 +225,10 @@ jobs:
         chmod +x buildozer
         
         ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
-
-        - name: Compile Pixel 8 Pro Kernel via Bazel      
-      run: |        
-        cd workspace
-        BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode --allow_undeclared_outputs" ./build_shusky.sh               
+        - name: Compile Pixel 8 Pro Kernel via Bazel
+        run: |
+          cd workspace
+          BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode --allow_undeclared_outputs" ./build_shusky.sh               
         
     - name: Package Kernel, Drivers, and Partitions into Flat Bundle
       run: |        
