@@ -74,7 +74,7 @@ jobs:
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
         
         # FORCE THE BUILD TO OCCUR
-        sed -i '1i CONFIG_RTL8812AU=m' drivers/net/wireless/realtek/rtl8812au/Makefile
+        sed -i '1i CONFIG_88XXAU=m' drivers/net/wireless/realtek/rtl8812au/Makefile
     
     - name: Apply KernelSU Next Patches & Configs      
       run: |        
