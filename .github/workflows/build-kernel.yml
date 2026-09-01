@@ -60,6 +60,10 @@ jobs:
         rm -rf drivers/net/wireless/realtek/rtw88
         rm -rf drivers/net/wireless/realtek/rtl8812au
         
+        # Bring back the dummy rtw88 Kconfig so the parent directory doesn't panic
+        mkdir -p drivers/net/wireless/realtek/rtw88
+        touch drivers/net/wireless/realtek/rtw88/Kconfig
+        
         # Clone YOUR specific fork of the repository
         git clone https://github.com/stoag/8812au-20210820.git drivers/net/wireless/realtek/rtl8812au
         
@@ -68,9 +72,6 @@ jobs:
         
         # Force Kbuild to step into our out-of-tree driver directory
         echo 'obj-y += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
-        
-        # Bypass Kconfig entirely by hardcoding the module build target to the bottom
-        echo 'obj-m := $(MODULE_NAME).o' >> drivers/net/wireless/realtek/rtl8812au/Makefile
     
     - name: Apply KernelSU Next Patches & Configs      
       run: |        
