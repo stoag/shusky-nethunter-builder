@@ -137,6 +137,7 @@ jobs:
         cd workspace
         
         {
+          echo '_bcd2bin'
           echo '__dev_kfree_skb_irq'
           echo '__hci_cmd_sync'
           echo '__hci_cmd_sync_ev'
@@ -151,6 +152,7 @@ jobs:
           echo 'btbcm_set_bdaddr'
           echo 'btbcm_setup_apple'
           echo 'btbcm_setup_patchram'
+          echo 'dev_coredumpv'
           echo 'device_release_driver'
           echo 'flush_signals'
           echo 'gpiod_get_optional'
@@ -209,8 +211,6 @@ jobs:
           echo 'usb_unanchor_urb'
           echo 'wake_up_bit'
           echo 'yield'
-          echo '_bcd2bin'
-          echo 'dev_coredump'
         } > missing_symbols.txt
         
         for list_file in aosp/android/abi_gki_aarch64 aosp/android/abi_gki_aarch64_pixel aosp/android/abi_gki_aarch64_core aosp/android/abi_gki_aarch64_virtual_device; do
@@ -221,7 +221,7 @@ jobs:
                 echo "Patched KMI Symbol List: $list_file"
             fi
         done
-
+        
     - name: Track Multi-Module rtw88 Stack in Bazel
       run: |
         cd workspace/aosp
