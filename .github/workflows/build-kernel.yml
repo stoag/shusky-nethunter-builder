@@ -50,7 +50,7 @@ jobs:
         # Sync required repositories to conserve runner storage        
         repo sync -c -j$(nproc) --no-tags --no-clone-bundle        
     
-    - name: Inject ShorterKing Android-Patched Driver
+    - name: Inject Morrownr Linux 6.1-Ready Driver
       run: |        
         cd workspace/aosp                
         
@@ -60,15 +60,16 @@ jobs:
         rm -rf drivers/net/wireless/realtek/rtw88
         rm -rf drivers/net/wireless/realtek/rtl8812au
         
-        # Bring back the dummy rtw88 Kconfig so the parent directory doesn't panic
-        mkdir -p drivers/net/wireless/realtek/rtw88
-        touch drivers/net/wireless/realtek/rtw88/Kconfig
-        
-        # Clone the CORRECT ShorterKing Android-ready repository
-        git clone https://github.com/ShorterKing/RTL88x2BU-Android-Drivers_rtl8812au.git drivers/net/wireless/realtek/rtl8812au
+        # Clone the actively maintained Morrownr repository for Linux 6.1+
+        git clone https://github.com/morrownr/8812au-20210629.git drivers/net/wireless/realtek/rtl8812au
         
         # Delete the .git folder so Bazel tracks it cleanly
         rm -rf drivers/net/wireless/realtek/rtl8812au/.git
+        
+        # Configure the driver for ARM64 Android compilation natively
+        sed -i 's/CONFIG_PLATFORM_I386_PC = y/CONFIG_PLATFORM_I386_PC = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
+        sed -i 's/CONFIG_PLATFORM_ARM_AARCH64 = n/CONFIG_PLATFORM_ARM_AARCH64 = y/g' drivers/net/wireless/realtek/rtl8812au/Makefile
+        sed -i 's/CONFIG_PLATFORM_ARM64 = n/CONFIG_PLATFORM_ARM64 = y/g' drivers/net/wireless/realtek/rtl8812au/Makefile
              
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
     
@@ -129,6 +130,7 @@ jobs:
         cd workspace
         
         {
+          echo '_bcd2bin'
           echo '__dev_kfree_skb_irq'
           echo '__hci_cmd_sync'
           echo '__hci_cmd_sync_ev'
@@ -143,6 +145,7 @@ jobs:
           echo 'btbcm_set_bdaddr'
           echo 'btbcm_setup_apple'
           echo 'btbcm_setup_patchram'
+          echo 'dev_coredumpv'
           echo 'device_release_driver'
           echo 'flush_signals'
           echo 'gpiod_get_optional'
@@ -212,14 +215,14 @@ jobs:
             fi
         done
 
-    - name: Track ShorterKing Monolithic Module in Bazel
+    - name: Track Morrownr Monolithic Module in Bazel
       run: |
         cd workspace/aosp
         
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
         
-        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/88x2bu.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
+        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
         
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
@@ -245,8 +248,8 @@ jobs:
         cp out/shusky/dist/Image.lz4 AnyKernel3/                
         mkdir -p AnyKernel3/twk_drivers        
         
-        # Copy the single monolithic ShorterKing driver
-        find out/shusky/dist -name "88x2bu.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
+        # Copy the single monolithic Morrownr driver
+        find out/shusky/dist -name "8812au.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
         
         sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (v${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh                
         
@@ -268,7 +271,7 @@ jobs:
           echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
           
           # Inject the single monolithic module
-          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/88x2bu.ko" >> $MOD_DIR/service.sh'
+          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/8812au.ko" >> $MOD_DIR/service.sh'
           
           echo 'chmod +x $MOD_DIR/service.sh'
           echo 'ui_print "- Drivers integrated successfully!";'
