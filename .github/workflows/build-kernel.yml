@@ -60,6 +60,10 @@ jobs:
         rm -rf drivers/net/wireless/realtek/rtw88
         rm -rf drivers/net/wireless/realtek/rtl8812au
         
+        # Bring back the dummy rtw88 Kconfig so the parent directory doesn't panic
+        mkdir -p drivers/net/wireless/realtek/rtw88
+        touch drivers/net/wireless/realtek/rtw88/Kconfig
+        
         # Clone the CORRECT ShorterKing Android-ready repository
         git clone https://github.com/ShorterKing/RTL88x2BU-Android-Drivers_rtl8812au.git drivers/net/wireless/realtek/rtl8812au
         
