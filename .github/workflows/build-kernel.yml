@@ -76,10 +76,6 @@ jobs:
         
         # Generate a dummy Kconfig to satisfy the parent directory's strict build checks
         touch drivers/net/wireless/realtek/rtw88/Kconfig
-        
-        # Surgically remove SDIO and PCI targets so the compiler ONLY builds the USB stack
-        sed -i '/rtw_sdio/d' drivers/net/wireless/realtek/rtw88/Makefile
-        sed -i '/rtw_pci/d' drivers/net/wireless/realtek/rtw88/Makefile
              
         echo 'obj-m += rtw88/' >> drivers/net/wireless/realtek/Makefile                
     
