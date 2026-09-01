@@ -1,4 +1,4 @@
-=name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU Next + ConfigFS
+name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU Next + ConfigFS
 
 on: 
   workflow_dispatch:
