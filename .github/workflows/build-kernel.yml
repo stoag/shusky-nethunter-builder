@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest    
     env:      
       # Release Version
-      CUSTOM_KERNEL_VERSION: "1.04"          
+      CUSTOM_KERNEL_VERSION: "1.05"          
     steps:    
     - name: Free Runner Disk Space      
       run: |        
@@ -50,34 +50,23 @@ jobs:
         # Sync required repositories to conserve runner storage        
         repo sync -c -j$(nproc) --no-tags --no-clone-bundle        
     
-    - name: Apply Kali NetHunter Subsystem Overrides      
-      run: |        
-        cd workspace/aosp                
-        
-        # Break MAC80211 LEDs natively in Kconfig to prevent core linker panics        
-        find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +        
-        sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig    
-    
-    - name: Inject Upstream rtw88 Driver Stack
+    - name: Inject ShorterKing Android-Patched Driver
       run: |        
         cd workspace/aosp                
         
         chmod u+w drivers/net/wireless/realtek/Makefile                
         
-        # Nuke the stock kernel's native rtw88 directory to prevent nesting!
+        # Clean out any native nested directories
         rm -rf drivers/net/wireless/realtek/rtw88
+        rm -rf drivers/net/wireless/realtek/rtl8812au
         
-        # Clone your new rtw88 backport fork
-        git clone https://github.com/stoag/rtw88.git /tmp/rtl_repo                
-        mv /tmp/rtl_repo drivers/net/wireless/realtek/rtw88   
+        # Clone the CORRECT ShorterKing Android-ready repository
+        git clone https://github.com/ShorterKing/RTL88x2BU-Android-Drivers_rtl8812au.git drivers/net/wireless/realtek/rtl8812au
         
-        # Delete the .git folder so Bazel tracks the directory into the sandbox
-        rm -rf drivers/net/wireless/realtek/rtw88/.git
-        
-        # Generate a dummy Kconfig to satisfy the parent directory's strict build checks
-        touch drivers/net/wireless/realtek/rtw88/Kconfig
+        # Delete the .git folder so Bazel tracks it cleanly
+        rm -rf drivers/net/wireless/realtek/rtl8812au/.git
              
-        echo 'obj-m += rtw88/' >> drivers/net/wireless/realtek/Makefile                
+        echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
     
     - name: Apply KernelSU Next Patches & Configs      
       run: |        
@@ -128,7 +117,6 @@ jobs:
           echo '# Core Wireless Subsystems'
           echo 'CONFIG_CFG80211=y'
           echo 'CONFIG_MAC80211=y'
-          echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
           echo 'CONFIG_BT_HCIBTUSB=m'
         } >> arch/arm64/configs/gki_defconfig    
 
@@ -137,7 +125,6 @@ jobs:
         cd workspace
         
         {
-          echo '_bcd2bin'
           echo '__dev_kfree_skb_irq'
           echo '__hci_cmd_sync'
           echo '__hci_cmd_sync_ev'
@@ -152,7 +139,6 @@ jobs:
           echo 'btbcm_set_bdaddr'
           echo 'btbcm_setup_apple'
           echo 'btbcm_setup_patchram'
-          echo 'dev_coredumpv'
           echo 'device_release_driver'
           echo 'flush_signals'
           echo 'gpiod_get_optional'
@@ -221,15 +207,15 @@ jobs:
                 echo "Patched KMI Symbol List: $list_file"
             fi
         done
-        
-    - name: Track Multi-Module rtw88 Stack in Bazel
+
+    - name: Track ShorterKing Monolithic Module in Bazel
       run: |
         cd workspace/aosp
         
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
         
-        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtw88/rtw_core.ko drivers/net/wireless/realtek/rtw88/rtw_usb.ko drivers/net/wireless/realtek/rtw88/rtw_88xxa.ko drivers/net/wireless/realtek/rtw88/rtw_8812a.ko drivers/net/wireless/realtek/rtw88/rtw_8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
+        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/88x2bu.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
         
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
@@ -255,8 +241,8 @@ jobs:
         cp out/shusky/dist/Image.lz4 AnyKernel3/                
         mkdir -p AnyKernel3/twk_drivers        
         
-        # Copy the entire modular rtw88 stack
-        find out/shusky/dist -name "rtw_*.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
+        # Copy the single monolithic ShorterKing driver
+        find out/shusky/dist -name "88x2bu.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
         
         sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (v${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh                
         
@@ -272,17 +258,13 @@ jobs:
           echo 'echo "id=twk_nethunter_drivers" > $MOD_DIR/module.prop'
           echo 'echo "name=Tweaker Kernel NetHunter Drivers" >> $MOD_DIR/module.prop'
           echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-          echo 'echo "versionCode=104" >> $MOD_DIR/module.prop'
+          echo 'echo "versionCode=105" >> $MOD_DIR/module.prop'
           echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
-          echo 'echo "description=Auto-injected driver overlay for Kali NetHunter." >> $MOD_DIR/module.prop'
+          echo 'echo "description=Auto-injected monolithic driver overlay for Kali NetHunter." >> $MOD_DIR/module.prop'
           echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
           
-          # Inject modules sequentially to satisfy dependencies
-          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/rtw_core.ko" >> $MOD_DIR/service.sh'
-          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/rtw_usb.ko" >> $MOD_DIR/service.sh'
-          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/rtw_88xxa.ko" >> $MOD_DIR/service.sh'
-          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/rtw_8812a.ko" >> $MOD_DIR/service.sh'
-          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/rtw_8812au.ko" >> $MOD_DIR/service.sh'
+          # Inject the single monolithic module
+          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/88x2bu.ko" >> $MOD_DIR/service.sh'
           
           echo 'chmod +x $MOD_DIR/service.sh'
           echo 'ui_print "- Drivers integrated successfully!";'
