@@ -60,16 +60,15 @@ jobs:
         rm -rf drivers/net/wireless/realtek/rtw88
         rm -rf drivers/net/wireless/realtek/rtl8812au
         
-        # Clone the actively maintained Morrownr repository for Linux 6.1+
-        git clone https://github.com/morrownr/8812au-20210629.git drivers/net/wireless/realtek/rtl8812au
+        # Bring back the dummy rtw88 Kconfig so the parent directory doesn't panic
+        mkdir -p drivers/net/wireless/realtek/rtw88
+        touch drivers/net/wireless/realtek/rtw88/Kconfig
+        
+        # Clone YOUR specific fork of the repository
+        git clone https://github.com/stoag/8812au-20210820.git drivers/net/wireless/realtek/rtl8812au
         
         # Delete the .git folder so Bazel tracks it cleanly
         rm -rf drivers/net/wireless/realtek/rtl8812au/.git
-        
-        # Configure the driver for ARM64 Android compilation natively
-        sed -i 's/CONFIG_PLATFORM_I386_PC = y/CONFIG_PLATFORM_I386_PC = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
-        sed -i 's/CONFIG_PLATFORM_ARM_AARCH64 = n/CONFIG_PLATFORM_ARM_AARCH64 = y/g' drivers/net/wireless/realtek/rtl8812au/Makefile
-        sed -i 's/CONFIG_PLATFORM_ARM64 = n/CONFIG_PLATFORM_ARM64 = y/g' drivers/net/wireless/realtek/rtl8812au/Makefile
              
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
     
@@ -123,6 +122,9 @@ jobs:
           echo 'CONFIG_CFG80211=y'
           echo 'CONFIG_MAC80211=y'
           echo 'CONFIG_BT_HCIBTUSB=m'
+          
+          echo '# Trigger the monolithic driver build'
+          echo 'CONFIG_RTL8812AU=m'
         } >> arch/arm64/configs/gki_defconfig    
 
     - name: Authorize NetHunter Symbols in GKI
