@@ -1,3 +1,5 @@
+[![Build Pixel 8 Pro (shusky) - NetHunter + KernelSU Next + ConfigFS](https://github.com/stoag/shusky-nethunter-builder/actions/workflows/build-kernel.yml/badge.svg)](https://github.com/stoag/shusky-nethunter-builder/actions/workflows/build-kernel.yml)
+ 
  · · · **Tweaker Kernel** · · ·    
  **Made for Pixel 8 Pro (shusky)**
  
