@@ -49,8 +49,8 @@ jobs:
             
         # Sync required repositories to conserve runner storage        
         repo sync -c -j$(nproc) --no-tags --no-clone-bundle        
-
-      - name: Inject Morrownr Linux 6.1-Ready Driver
+        
+    - name: Inject Morrownr Linux 6.1-Ready Driver
       run: |        
         cd workspace/aosp                
         
@@ -77,7 +77,7 @@ jobs:
         echo 'obj-y += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
         
         # Bypass Kconfig entirely by hardcoding the module build target to the bottom
-        echo 'obj-m := $(MODULE_NAME).o' >> drivers/net/wireless/realtek/rtl8812au/Makefil
+        echo 'obj-m := $(MODULE_NAME).o' >> drivers/net/wireless/realtek/rtl8812au/Makefile
     
     - name: Apply KernelSU Next Patches & Configs      
       run: |        
