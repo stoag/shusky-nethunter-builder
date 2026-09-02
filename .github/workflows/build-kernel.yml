@@ -72,6 +72,9 @@ jobs:
         
         # Force Kbuild to step into our out-of-tree driver directory
         echo 'obj-y += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
+        
+        # Bypass Kconfig entirely by hardcoding the module build target to the bottom
+        echo 'obj-m := $(MODULE_NAME).o' >> drivers/net/wireless/realtek/rtl8812au/Makefile
     
     - name: Apply KernelSU Next Patches & Configs      
       run: |        
@@ -228,7 +231,7 @@ jobs:
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
         cd workspace
-        BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode" ./build_shusky.sh
+        BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode --//build/kernel/kleaf:kbuild_build_user=Tweaker --//build/kernel/kleaf:kbuild_build_host=twk-v${{ env.CUSTOM_KERNEL_VERSION }}" ./build_shusky.sh
     
     - name: Package Kernel, Drivers, and Partitions into Flat Bundle
       run: |        
