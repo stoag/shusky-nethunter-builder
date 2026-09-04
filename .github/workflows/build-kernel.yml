@@ -98,14 +98,9 @@ jobs:
           echo 'CONFIG_RTW88_CORE=n'
           echo 'CONFIG_RTW88_USB=n'
           echo 'CONFIG_RTL8812AU=m'
-          echo 'CONFIG_WIRELESS=y'
-          
-		  echo '# these may not affect the marrowner repo'
 		  echo 'CONFIG_CFG80211_CERTIFICATION_ONUS=y'
-		  echo 'CONFIG_PLATFORM_I386_PC=n'
-		  ehco 'CONFIG_PLATFORM_ARM_ANDROID=y'
-		  echo '## will decide later if I want to use ## CONFIG_POWER_SAVING=y'
-		  
+          echo 'CONFIG_WIRELESS=y'
+
           echo '# Inline KernelSU Next'
           echo 'CONFIG_KSU=y'
           echo 'CONFIG_TRIM_NONLISTED_KMI=n'
