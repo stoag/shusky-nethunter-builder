@@ -90,7 +90,22 @@ jobs:
         {
           echo '# Custom Kernel Signature'
           echo 'CONFIG_LOCALVERSION="-twk.v${{ env.CUSTOM_KERNEL_VERSION }}"'
+
+          echo '# for good measure...'
+          echo 'CONFIG_CFI_CLANG=n'
+          echo 'CONFIG_CFI_PERMISSIVE=n'
+          echo 'CONFIG_RTW88=n'
+          echo 'CONFIG_RTW88_CORE=n'
+          echo 'CONFIG_RTW88_USB=n'
+          echo 'CONFIG_RTL8812AU=m'
+          echo 'CONFIG_WIRELESS=y'
           
+		  echo '# these may not affect the marrowner repo'
+		  echo 'CONFIG_CFG80211_CERTIFICATION_ONUS=y'
+		  echo 'CONFIG_PLATFORM_I386_PC=n'
+		  ehco 'CONFIG_PLATFORM_ARM_ANDROID=y'
+		  echo '## will decide later if I want to use ## CONFIG_POWER_SAVING=y'
+		  
           echo '# Inline KernelSU Next'
           echo 'CONFIG_KSU=y'
           echo 'CONFIG_TRIM_NONLISTED_KMI=n'
@@ -231,7 +246,13 @@ jobs:
         
         ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
         
-    - name: Compile Pixel 8 Pro Kernel via Bazel      
+     - name: Upload Build Script as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixel-build-script  # This is the name of the ZIP file
+          path: build_shusky.sh     # The exact path to your file in the workspace
+		  
+	- name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
         cd workspace
         BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode --//build/kernel/kleaf:kbuild_build_user=Tweaker --//build/kernel/kleaf:kbuild_build_host=twk-v${{ env.CUSTOM_KERNEL_VERSION }}" ./build_shusky.sh
