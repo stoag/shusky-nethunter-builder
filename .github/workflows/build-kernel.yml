@@ -69,7 +69,7 @@ jobs:
           
           # Delete the .git folder so Bazel tracks it cleanly
           rm -rf drivers/net/wireless/realtek/rtl8812au/.git
-                             
+          
           # Disable fatal packet-batching optimizations incompatible with Tensor IOMMU
           sed -i 's/CONFIG_RTW_NAPI = y/CONFIG_RTW_NAPI = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
           sed -i 's/CONFIG_RTW_GRO = y/CONFIG_RTW_GRO = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
@@ -302,8 +302,8 @@ jobs:
             echo 'echo "description=Auto-injected monolithic driver overlay for Kali NetHunter." >> $MOD_DIR/module.prop'
             echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
             
-            # Inject the single monolithic module
-            echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/8812au.ko" >> $MOD_DIR/service.sh'
+            # Inject the single monolithic module with aggressive debugging and power-management disabled
+            echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/8812au.ko rtw_drv_log_level=6 rtw_power_mgnt=0 rtw_switch_usb_mode=0" >> $MOD_DIR/service.sh'
             
             echo 'chmod +x $MOD_DIR/service.sh'
             echo 'ui_print "- Drivers integrated successfully!";'
@@ -316,7 +316,6 @@ jobs:
           cd ..
 
           # 3. Extract and Rename Partition Images directly into the bundle folder
-          find out/ -type f -name "boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-boot.img \;
           find out/ -type f -name "init_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-init_boot.img \;
           find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_dlkm.img \;
           find out/ -type f -name "vendor_kernel_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_kernel_boot.img \;
