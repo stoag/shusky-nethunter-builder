@@ -69,10 +69,7 @@ jobs:
           
           # Delete the .git folder so Bazel tracks it cleanly
           rm -rf drivers/net/wireless/realtek/rtl8812au/.git
-          
-          # Disable Clang CFI and Shadow Call Stack for legacy Realtek signatures
-          echo 'ccflags-y += -fno-sanitize=cfi -fno-sanitize=shadow-call-stack' >> drivers/net/wireless/realtek/rtl8812au/Makefile
-          
+                             
           # Disable fatal packet-batching optimizations incompatible with Tensor IOMMU
           sed -i 's/CONFIG_RTW_NAPI = y/CONFIG_RTW_NAPI = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
           sed -i 's/CONFIG_RTW_GRO = y/CONFIG_RTW_GRO = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
