@@ -78,11 +78,10 @@ jobs:
           # Stop driver from reading firmware files with dummy GKI I/O functions
           sed -i 's/CONFIG_LOAD_PHY_PARA_FROM_FILE = y/CONFIG_LOAD_PHY_PARA_FROM_FILE = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
           
-          # Ensure Concurrent Mode is disabled to stop the kali1 thread collision crash
+          # Forcefully disable Concurrent Mode in Morrownr's Makefile variables
+          sed -i 's/CONFIG_CONCURRENT_MODE\s*=\s*y/CONFIG_CONCURRENT_MODE = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
+          sed -i 's/CONFIG_CONCURRENT_MODE=y/CONFIG_CONCURRENT_MODE=n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
           sed -i 's/ccflags-y += -DCONFIG_CONCURRENT_MODE/#ccflags-y += -DCONFIG_CONCURRENT_MODE/g' drivers/net/wireless/realtek/rtl8812au/Makefile
-          
-          ###### Ensure Concurrent Mode is strictly enabled for mon0 spawning
-          ######sed -i 's/#ccflags-y += -DCONFIG_CONCURRENT_MODE/ccflags-y += -DCONFIG_CONCURRENT_MODE/g' drivers/net/wireless/realtek/rtl8812au/Makefile
           
           # Force DMA-safe USB buffer allocation for Tensor G3 IOMMU
           echo 'ccflags-y += -DCONFIG_USE_USB_BUFFER_ALLOC_TX -DCONFIG_USE_USB_BUFFER_ALLOC_RX' >> drivers/net/wireless/realtek/rtl8812au/Makefile
@@ -92,7 +91,7 @@ jobs:
           
           # Bypass Kconfig entirely by hardcoding the module build target to the bottom
           echo 'obj-m := $(MODULE_NAME).o' >> drivers/net/wireless/realtek/rtl8812au/Makefile
-
+          
       - name: Apply KernelSU Next Patches & Configs
         run: |
           cd workspace/aosp
