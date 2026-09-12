@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Release Version
-      CUSTOM_KERNEL_VERSION: "1.05"
+      CUSTOM_KERNEL_VERSION: "1.06"
     steps:
       - name: Free Runner Disk Space
         run: |
