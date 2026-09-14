@@ -138,8 +138,8 @@ jobs:
           } >> arch/arm64/configs/gki_defconfig
 
           # 3. Patch Broadcom driver to stop crashing when external adapters connect
-          find ../private/google-modules/wlan/ -type f -name "*.c" -exec sed -i 's/wl_cfgvendor_trigger_ssr/\/\/ Bypassed SSR/g' {} +
-
+          sed -i 's/.*wl_cfgvendor_trigger_ssr.*/\/\/ Bypassed SSR/g' ../private/google-modules/wlan/bcm4398/wl_cfg80211.c
+          
       - name: Authorize NetHunter Symbols in GKI
         run: |
           cd workspace
