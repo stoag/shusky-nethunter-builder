@@ -59,7 +59,7 @@
    - Flash `vendor_kernel_boot.img` -> to the `vendor_kernel_boot` partition
 7. Reboot and Enjoy! :D
 
-Woot!! twk.v1.08!
+Woot!! twk.v1.07!
 Successfully added Realtek rtl8812au drivers for my AWUS036ACH usb wireless adapter. 
 :D
 
