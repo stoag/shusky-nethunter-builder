@@ -59,12 +59,7 @@
    - Flash `vendor_kernel_boot.img` -> to the `vendor_kernel_boot` partition
 7. Reboot and Enjoy! :D
 
-## Credit should go to [ShorterKing](https://github.com/ShorterKing) for his Android optimized Realtek drivers!
-
-
-
-
-Woot!! twk.v1.02!
+Woot!! twk.v1.08!
 Successfully added Realtek rtl8812au drivers for my AWUS036ACH usb wireless adapter. 
 :D
 
