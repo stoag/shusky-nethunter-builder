@@ -17,11 +17,10 @@
 - keeping the `init_boot` ramdisk 100% factory stock for stealth and stability.
 - **Wireless Injection (mac80211):** Patched `mac80211` subsystem allowing frame injection and
 - monitor mode on external USB Wi-Fi adapters.
-- **Advanced Out-of-Tree Wi-Fi Drivers:** Pre-compiles and packages kernel modules for Atheros (`ath9k_htc`),
-- older Realtek (`rtl8187`), and Bluetooth USB dongles (`btusb`).
-- **Modern Realtek Injection & GKI Bypass:** Features native integration of **RTL8812AU** and **RTL88x2BU**
-- (RTL8822BU, RTL8812BU, RTL8822CU) drivers. Includes a custom C-source macro bypass to get around Google's
-- strict GKI File I/O security blocks. 
+- **Advanced Out-of-Tree Wi-Fi Drivers:** Pre-compiles and packages kernel modules for Realtek 8812au and
+- Mediatek MT76 usb wireless adapters.
+- **Modern Realtek Injection & GKI Bypass:** Features native integration of **RTL8812AU**  drivers. Includes
+- a custom C-source macro bypass to get around Google's- strict GKI File I/O security blocks. 
 - **USB Arsenal & ConfigFS:** Native support for USB HID Gadget attacks (DuckHunter), Mass Storage emulation,
 - ECM, and ACM serial interfaces.
 - **Filesystem & Network Optimizations:** BBR TCP congestion control, WireGuard VPN support, TTL/HL override
