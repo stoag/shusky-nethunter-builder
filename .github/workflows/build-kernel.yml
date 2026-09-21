@@ -72,30 +72,14 @@ jobs:
           echo 'obj-y += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
           echo 'obj-m := $(MODULE_NAME).o' >> drivers/net/wireless/realtek/rtl8812au/Makefile
 
-      - name: Apply KernelSU Next, SuSFS & NetHunter Configs
+      - name: Apply KernelSU Next & NetHunter Configs
         run: |
           cd workspace/aosp
           
           # 1. Inject KernelSU Next Inline Source Code
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
           
-          # 2. Inject SuSFS (Android 14 6.1 GKI)
-          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
-          
-          # Patch KernelSU-Next for SuSFS
-          cp susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./KernelSU-Next/
-          cd KernelSU-Next
-          patch -p1 < 10_enable_susfs_for_ksu.patch || true
-          cd ..
-          
-          # Patch the GKI Kernel for SuSFS
-          patch -p1 < susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch
-          
-          # Copy SuSFS Source Files into the Kernel Tree
-          cp -r susfs4ksu/kernel_patches/fs/* fs/
-          cp -r susfs4ksu/kernel_patches/include/linux/* include/linux/
-          
-          # 3. Append Configs (NetHunter, MT76, 8812AU, KSU + SuSFS)
+          # 2. Append Configs (NetHunter, MT76, 8812AU, KSU)
           {
             echo '# Custom Kernel Signature'
             echo 'CONFIG_LOCALVERSION="-twk.v${{ env.CUSTOM_KERNEL_VERSION }}"'
@@ -122,20 +106,8 @@ jobs:
             echo 'CONFIG_RTW88_USB=n'
             echo 'CONFIG_RTL8812AU=m'
 
-            echo '# Inline KernelSU Next & SuSFS'
+            echo '# Inline KernelSU Next'
             echo 'CONFIG_KSU=y'
-            echo 'CONFIG_KSU_SUSFS=y'
-            echo 'CONFIG_KSU_SUSFS_SUS_PATH=y'
-            echo 'CONFIG_KSU_SUSFS_SUS_MOUNT=y'
-            echo 'CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y'
-            echo 'CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y'
-            echo 'CONFIG_KSU_SUSFS_SUS_KSTAT=y'
-            echo 'CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y'
-            echo 'CONFIG_KSU_SUSFS_TRY_UMOUNT=y'
-            echo 'CONFIG_KSU_SUSFS_SPOOF_UNAME=y'
-            echo 'CONFIG_KSU_SUSFS_ENABLE_LOG=y'
-            echo 'CONFIG_KSU_SUSFS_OPEN_REDIRECT=y'
-            echo 'CONFIG_KSU_SUSFS_SUS_SU=y'
             echo 'CONFIG_TRIM_NONLISTED_KMI=n'
             
             echo '# USB ConfigFS & HID Arsenal'
@@ -170,7 +142,7 @@ jobs:
             
             echo 'CONFIG_BT_HCIBTUSB=m'
           } >> arch/arm64/configs/gki_defconfig
-                    
+
       - name: Authorize NetHunter Symbols in GKI
         run: |
           cd workspace
@@ -301,16 +273,17 @@ jobs:
           curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u.bin
           curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u_rom_patch.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u_rom_patch.bin
           
-          # Copy the single monolithic Morrownr driver
+          # Copy the Realtek driver AND the MediaTek modular stack
           mkdir -p AnyKernel3/twk_drivers
           find out/shusky/dist -name "8812au.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
+          find out/shusky/dist -name "mt76*.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
           
           sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (v${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh
           
           {
             echo '# --- TWEAKER KERNEL HYBRID INJECTION ---'
             echo 'ui_print " ";'
-            echo 'ui_print "- Injecting Mediatek Firmware & Realtek Drivers...";'
+            echo 'ui_print "- Injecting Mediatek Firmware & Adapter Drivers...";'
             echo 'mount /data;'
             echo 'MOD_DIR="/data/adb/modules/twk_nethunter_adapters"'
             echo 'rm -rf $MOD_DIR'
@@ -326,9 +299,15 @@ jobs:
             echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
             echo 'echo "versionCode=107" >> $MOD_DIR/module.prop'
             echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
-            echo 'echo "description=Injects MT76 firmware for Panda adapters & 8812au drivers for Realtek adapters." >> $MOD_DIR/module.prop'
+            echo 'echo "description=Injects MT76 firmware for Panda adapters & modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
             
             echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
+            echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76.ko" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76-usb.ko" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x02-lib.ko" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x02-usb.ko" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x2-common.ko" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x2u.ko" >> $MOD_DIR/service.sh'
             echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/8812au.ko rtw_drv_log_level=6 rtw_power_mgnt=0 rtw_switch_usb_mode=0" >> $MOD_DIR/service.sh'
             echo 'chmod +x $MOD_DIR/service.sh'
             
