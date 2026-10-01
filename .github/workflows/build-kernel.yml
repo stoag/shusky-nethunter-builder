@@ -93,18 +93,14 @@ jobs:
           sed -i '/source "drivers\/misc\/Kconfig"/a source "drivers\/kernelsu\/Kconfig"' drivers/Kconfig
           
           # ---------------------------------
-          # FLAWLESS BAZEL SANDBOX BYPASS
+          # THE NUCLEAR OPTION: HARDCODE INTO SOURCE
           # ---------------------------------
-          # Prepend variables to the absolute top of the Makefiles so GNU Make 
-          # skips the git checks and fallbacks completely.
-          for KFILE in drivers/kernelsu/Kbuild drivers/kernelsu/Makefile; do
-              if [ -f "$KFILE" ]; then
-                  echo "KSU_GIT_VERSION := $KSUN_COMMITS" > /tmp/ksu_stamp.txt
-                  echo "KSU_VERSION_TAG := $KSUN_TAG" >> /tmp/ksu_stamp.txt
-                  cat "$KFILE" >> /tmp/ksu_stamp.txt
-                  mv /tmp/ksu_stamp.txt "$KFILE"
-              fi
-          done
+          # Since Bazel strips .git and overrides Makefile flags, we inject the
+          # version directly into the main KernelSU header file. 
+          sed -i "1i #undef KSU_VERSION" drivers/kernelsu/ksu.h
+          sed -i "2i #define KSU_VERSION $KSUN_COMMITS" drivers/kernelsu/ksu.h
+          sed -i "3i #undef KSU_VERSION_TAG" drivers/kernelsu/ksu.h
+          sed -i "4i #define KSU_VERSION_TAG \"$KSUN_TAG\"" drivers/kernelsu/ksu.h
           # ---------------------------------
           
           # 2. Inject SuSFS (Android 14 6.1 GKI patches)
