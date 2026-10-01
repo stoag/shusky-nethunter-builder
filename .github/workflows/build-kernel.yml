@@ -93,12 +93,12 @@ jobs:
           sed -i '/source "drivers\/misc\/Kconfig"/a source "drivers\/kernelsu\/Kconfig"' drivers/Kconfig
           
           # ---------------------------------
-          # HIJACK THE BAZEL FALLBACK
+          # ULTIMATE REGEX MAKEFILE OVERRIDE
           # ---------------------------------
-          # Bazel deletes the .git folder, forcing the Makefile to use its fallback values.
-          # Instead of fighting the sandbox, we simply rewrite the fallback values themselves!
-          sed -i "s/KSU_GIT_VERSION := 1/KSU_GIT_VERSION := $KSUN_COMMITS/g" drivers/kernelsu/Makefile drivers/kernelsu/Kbuild || true
-          sed -i "s/KSU_VERSION_TAG := v0.0.1/KSU_VERSION_TAG := $KSUN_TAG/g" drivers/kernelsu/Makefile drivers/kernelsu/Kbuild || true
+          # This regex finds EVERY instance where the Makefile sets the version
+          # (whether by git fetch or fallback) and permanently overwrites it.
+          sed -i -E "s/KSU_GIT_VERSION\s*[:?]*=.*/KSU_GIT_VERSION := $KSUN_COMMITS/g" drivers/kernelsu/Makefile drivers/kernelsu/Kbuild || true
+          sed -i -E "s/KSU_VERSION_TAG\s*[:?]*=.*/KSU_VERSION_TAG := \"$KSUN_TAG\"/g" drivers/kernelsu/Makefile drivers/kernelsu/Kbuild || true
           # ---------------------------------
           
           # 2. Inject SuSFS (Android 14 6.1 GKI patches)
