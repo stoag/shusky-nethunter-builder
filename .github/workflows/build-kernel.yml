@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Release Version
-      CUSTOM_KERNEL_VERSION: "1.09"
+      CUSTOM_KERNEL_VERSION: "1.10"
     steps:
       - name: Free Runner Disk Space
         run: |
@@ -79,11 +79,14 @@ jobs:
           # 1. Inject KernelSU-Next (SuSFS-Integrated Branch via pershoot)
           curl -LSs "https://raw.githubusercontent.com/pershoot/KernelSU-Next/refs/heads/next-susfs/kernel/setup.sh" | bash -s
           
+          # FIX: Force KSUN Version to bypass the Bazel sandbox .git wipe
+          sed -i '1s/^/KSU_GIT_VERSION := 11956\n/' KernelSU-Next/Kbuild
+          sed -i '1s/^/KSU_VERSION_TAG := "v3.4.0"\n/' KernelSU-Next/Kbuild
+          
           # 2. Inject SuSFS (Android 14 6.1 GKI tailored for KSUN via pershoot)
           git clone https://gitlab.com/pershoot/susfs4ksu.git -b gki-android14-6.1-dev
           
           # Patch the GKI Kernel for SuSFS & Execve Hooks
-          # (We skip patching KernelSU-Next itself because pershoot's branch already includes it)
           patch -p1 --forward < susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch || true
           
           # Copy SuSFS Source Files into the Kernel Tree
@@ -336,7 +339,7 @@ jobs:
             echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
             echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
             echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-            echo 'echo "versionCode=109" >> $MOD_DIR/module.prop'
+            echo 'echo "versionCode=110" >> $MOD_DIR/module.prop'
             echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
             echo 'echo "description=Injects MT76 firmware for Panda adapters & modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
             
