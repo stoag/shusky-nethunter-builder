@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Release Version
-      CUSTOM_KERNEL_VERSION: "1.19"
+      CUSTOM_KERNEL_VERSION: "1.20"
     steps:
       - name: Free Runner Disk Space
         run: |
@@ -92,18 +92,28 @@ jobs:
           echo 'obj-y += kernelsu/' >> drivers/Makefile
           sed -i '/source "drivers\/misc\/Kconfig"/a source "drivers\/kernelsu\/Kconfig"' drivers/Kconfig
           
-          # Bulletproof Python replacement for version stamps (YAML indentation safe)
-          python3 -c '
-          import sys, re, os, textwrap
-          exec(textwrap.dedent("""
-              for p in ["drivers/kernelsu/Kbuild", "drivers/kernelsu/Makefile"]:
-                  if os.path.exists(p):
-                      c = open(p).read()
-                      c = re.sub(r"(?m)^\s*KSU_GIT_VERSION.*", "KSU_GIT_VERSION := " + sys.argv[2], c)
-                      c = re.sub(r"(?m)^\s*KSU_VERSION_TAG.*", "KSU_VERSION_TAG := \"{}\"".format(sys.argv[1]), c)
-                      open(p, "w").write(c)
-          """))
-          ' "$KSUN_TAG" "$KSUN_COMMITS"
+          # Bulletproof Python replacement (Standalone script to prevent Bash/YAML escaping issues)
+          cat << 'EOF' > patch_ksu.py
+          import sys, re, os
+
+          ksun_tag = sys.argv[1]
+          ksun_commits = sys.argv[2]
+
+          for p in ["drivers/kernelsu/Kbuild", "drivers/kernelsu/Makefile"]:
+              if os.path.exists(p):
+                  with open(p, "r") as f:
+                      c = f.read()
+                  
+                  # Use multiline regex to safely overwrite the exact compiler variables
+                  c = re.sub(r"(?m)^\s*KSU_GIT_VERSION.*", f"KSU_GIT_VERSION := {ksun_commits}", c)
+                  c = re.sub(r"(?m)^\s*KSU_VERSION_TAG.*", f'KSU_VERSION_TAG := "{ksun_tag}"', c)
+                  
+                  with open(p, "w") as f:
+                      f.write(c)
+          EOF
+          
+          # Run the pure Python script
+          python3 patch_ksu.py "$KSUN_TAG" "$KSUN_COMMITS"
           # ---------------------------------
           
           # 2. Inject SuSFS (Android 14 6.1 GKI patches)
@@ -358,7 +368,7 @@ jobs:
             echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
             echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
             echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-            echo 'echo "versionCode=119" >> $MOD_DIR/module.prop'
+            echo 'echo "versionCode=120" >> $MOD_DIR/module.prop'
             echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
             echo 'echo "description=Injects MT76 firmware for Panda adapters & modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
             
