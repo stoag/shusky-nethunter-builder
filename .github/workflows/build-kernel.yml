@@ -83,10 +83,9 @@ jobs:
           cd KernelSU-Next
           KSUN_TAG=$(git describe --tags --abbrev=0)
           KSUN_COMMITS=$(git rev-list --count HEAD)
-          KSUN_PROPER_VERSION=$((30000 + KSUN_COMMITS))
           cd ..
           
-          echo "Detected KSUN Version: $KSUN_TAG (Commits: $KSUN_COMMITS) (API: $KSUN_PROPER_VERSION)"
+          echo "Detected KSUN Version: $KSUN_TAG (Commits: $KSUN_COMMITS)"
           
           # Manually COPY it into the kernel tree (Bazel sandboxes destroy symlinks)
           cp -r KernelSU-Next/kernel drivers/kernelsu
@@ -94,10 +93,18 @@ jobs:
           sed -i '/source "drivers\/misc\/Kconfig"/a source "drivers\/kernelsu\/Kconfig"' drivers/Kconfig
           
           # ---------------------------------
-          # THE EXACT FALLBACK OVERRIDE
+          # THE FLAWLESS BAZEL BYPASS
           # ---------------------------------
-          sed -i "s/KSU_VERSION_FALLBACK := 1/KSU_VERSION_FALLBACK := $KSUN_PROPER_VERSION/g" drivers/kernelsu/Makefile drivers/kernelsu/Kbuild || true
-          sed -i "s/KSU_VERSION_TAG_FALLBACK := v0.0.1/KSU_VERSION_TAG_FALLBACK := $KSUN_TAG/g" drivers/kernelsu/Makefile drivers/kernelsu/Kbuild || true
+          # Bazel removes the .git folder, so we must manually define the variables
+          # the Makefile expects before it calculates the final version.
+          for KFILE in drivers/kernelsu/Makefile drivers/kernelsu/Kbuild; do
+              if [ -f "$KFILE" ]; then
+                  # Inject variables at line 1
+                  sed -i "1i KSU_GIT_VERSION := $KSUN_COMMITS" "$KFILE"
+                  sed -i "2i KSU_GIT_TAG := $KSUN_TAG" "$KFILE"
+                  sed -i "3i KSU_GIT_VERSION_VALID := 1" "$KFILE"
+              fi
+          done
           # ---------------------------------
           
           # 2. Inject SuSFS (Android 14 6.1 GKI patches)
