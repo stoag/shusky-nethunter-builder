@@ -1,4 +1,4 @@
-name: Build Pixel 8 Pro (shusky) - NetHunter + Official KSU (v1.0.3) + SuSFS
+name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU-Next + SuSFS
 
 on:
   workflow_dispatch:
@@ -72,34 +72,25 @@ jobs:
           echo 'obj-y += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
           echo 'obj-m := $(MODULE_NAME).o' >> drivers/net/wireless/realtek/rtl8812au/Makefile
 
-      - name: Apply Pegged KernelSU (v1.0.3), SuSFS & NetHunter Configs
+      - name: Apply KernelSU-Next, SuSFS & NetHunter Configs
         run: |
           cd workspace/aosp
           
-          # 1. Inject Official KernelSU and Peg to Stable v1.0.3
-          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
-          cd KernelSU
-          git fetch --tags
-          git checkout v1.0.3
-          cd ..
+          # 1. Inject KernelSU-Next (SuSFS-Integrated Branch via pershoot)
+          curl -LSs "https://raw.githubusercontent.com/pershoot/KernelSU-Next/refs/heads/next-susfs/kernel/setup.sh" | bash -s
           
-          # 2. Inject SuSFS (Android 14 6.1 GKI)
-          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
-          
-          # Patch Official KernelSU for SuSFS
-          cp susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./KernelSU/
-          cd KernelSU
-          patch -p1 --forward < 10_enable_susfs_for_ksu.patch || true
-          cd ..
+          # 2. Inject SuSFS (Android 14 6.1 GKI tailored for KSUN via pershoot)
+          git clone https://gitlab.com/pershoot/susfs4ksu.git -b gki-android14-6.1-dev
           
           # Patch the GKI Kernel for SuSFS & Execve Hooks
+          # (We skip patching KernelSU-Next itself because pershoot's branch already includes it)
           patch -p1 --forward < susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch || true
           
           # Copy SuSFS Source Files into the Kernel Tree
           cp -r susfs4ksu/kernel_patches/fs/* fs/
           cp -r susfs4ksu/kernel_patches/include/linux/* include/linux/
           
-          # 3. Append Configs (NetHunter, MT76, 8812AU, KSU + SuSFS)
+          # 3. Append Configs (NetHunter, MT76, 8812AU, KSUN + SuSFS)
           {
             echo '# Custom Kernel Signature'
             echo 'CONFIG_LOCALVERSION="-twk.v${{ env.CUSTOM_KERNEL_VERSION }}"'
@@ -126,7 +117,7 @@ jobs:
             echo 'CONFIG_RTW88_USB=n'
             echo 'CONFIG_RTL8812AU=m'
 
-            echo '# Inline Official KernelSU & SuSFS'
+            echo '# Inline KernelSU-Next & SuSFS'
             echo 'CONFIG_KSU=y'
             echo 'CONFIG_KSU_SUSFS=y'
             echo 'CONFIG_KSU_SUSFS_SUS_PATH=y'
@@ -329,8 +320,9 @@ jobs:
             echo 'ui_print "- Injecting Mediatek Firmware & Adapter Drivers...";'
             echo 'mount /data;'
             
-            echo 'ui_print "- Wiping old KSU database...";'
+            echo 'ui_print "- Wiping old KSU/Next databases...";'
             echo 'rm -rf /data/adb/ksu'
+            echo 'rm -rf /data/adb/ksud'
             
             echo 'MOD_DIR="/data/adb/modules/twk_nethunter_adapters"'
             echo 'rm -rf $MOD_DIR'
