@@ -1,4 +1,4 @@
-name: Build Pixel 8 Pro (shusky) - NetHunter (MT76 + 8812AU) + Official KernelSU
+name: Build Pixel 8 Pro (shusky) - NetHunter + Official KSU (v1.0.3) + SuSFS
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Release Version
-      CUSTOM_KERNEL_VERSION: "1.08"
+      CUSTOM_KERNEL_VERSION: "1.09"
     steps:
       - name: Free Runner Disk Space
         run: |
@@ -72,14 +72,34 @@ jobs:
           echo 'obj-y += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
           echo 'obj-m := $(MODULE_NAME).o' >> drivers/net/wireless/realtek/rtl8812au/Makefile
 
-      - name: Apply Official KernelSU & NetHunter Configs
+      - name: Apply Pegged KernelSU (v1.0.3), SuSFS & NetHunter Configs
         run: |
           cd workspace/aosp
           
-          # 1. Inject Official KernelSU Inline Source Code
+          # 1. Inject Official KernelSU and Peg to Stable v1.0.3
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
+          cd KernelSU
+          git fetch --tags
+          git checkout v1.0.3
+          cd ..
           
-          # 2. Append Configs (NetHunter, MT76, 8812AU, KSU)
+          # 2. Inject SuSFS (Android 14 6.1 GKI)
+          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
+          
+          # Patch Official KernelSU for SuSFS
+          cp susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./KernelSU/
+          cd KernelSU
+          patch -p1 --forward < 10_enable_susfs_for_ksu.patch || true
+          cd ..
+          
+          # Patch the GKI Kernel for SuSFS & Execve Hooks
+          patch -p1 --forward < susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch || true
+          
+          # Copy SuSFS Source Files into the Kernel Tree
+          cp -r susfs4ksu/kernel_patches/fs/* fs/
+          cp -r susfs4ksu/kernel_patches/include/linux/* include/linux/
+          
+          # 3. Append Configs (NetHunter, MT76, 8812AU, KSU + SuSFS)
           {
             echo '# Custom Kernel Signature'
             echo 'CONFIG_LOCALVERSION="-twk.v${{ env.CUSTOM_KERNEL_VERSION }}"'
@@ -106,8 +126,20 @@ jobs:
             echo 'CONFIG_RTW88_USB=n'
             echo 'CONFIG_RTL8812AU=m'
 
-            echo '# Inline Official KernelSU'
+            echo '# Inline Official KernelSU & SuSFS'
             echo 'CONFIG_KSU=y'
+            echo 'CONFIG_KSU_SUSFS=y'
+            echo 'CONFIG_KSU_SUSFS_SUS_PATH=y'
+            echo 'CONFIG_KSU_SUSFS_SUS_MOUNT=y'
+            echo 'CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y'
+            echo 'CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y'
+            echo 'CONFIG_KSU_SUSFS_SUS_KSTAT=y'
+            echo 'CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y'
+            echo 'CONFIG_KSU_SUSFS_TRY_UMOUNT=y'
+            echo 'CONFIG_KSU_SUSFS_SPOOF_UNAME=y'
+            echo 'CONFIG_KSU_SUSFS_ENABLE_LOG=y'
+            echo 'CONFIG_KSU_SUSFS_OPEN_REDIRECT=y'
+            echo 'CONFIG_KSU_SUSFS_SUS_SU=y'
             echo 'CONFIG_TRIM_NONLISTED_KMI=n'
             
             echo '# USB ConfigFS & HID Arsenal'
@@ -296,6 +328,10 @@ jobs:
             echo 'ui_print " ";'
             echo 'ui_print "- Injecting Mediatek Firmware & Adapter Drivers...";'
             echo 'mount /data;'
+            
+            echo 'ui_print "- Wiping old KSU database...";'
+            echo 'rm -rf /data/adb/ksu'
+            
             echo 'MOD_DIR="/data/adb/modules/twk_nethunter_adapters"'
             echo 'rm -rf $MOD_DIR'
             
@@ -308,7 +344,7 @@ jobs:
             echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
             echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
             echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-            echo 'echo "versionCode=108" >> $MOD_DIR/module.prop'
+            echo 'echo "versionCode=109" >> $MOD_DIR/module.prop'
             echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
             echo 'echo "description=Injects MT76 firmware for Panda adapters & modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
             
