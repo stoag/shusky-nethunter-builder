@@ -100,16 +100,26 @@ jobs:
           ksun_commits = sys.argv[2]
 
           for p in ["drivers/kernelsu/Kbuild", "drivers/kernelsu/Makefile"]:
-              if os.path.exists(p):
-                  with open(p, "r") as f:
-                      c = f.read()
-                  
-                  # Use multiline regex to safely overwrite the exact compiler variables
-                  c = re.sub(r"(?m)^\s*KSU_GIT_VERSION.*", f"KSU_GIT_VERSION := {ksun_commits}", c)
-                  c = re.sub(r"(?m)^\s*KSU_VERSION_TAG.*", f'KSU_VERSION_TAG := "{ksun_tag}"', c)
-                  
-                  with open(p, "w") as f:
-                      f.write(c)
+              if not os.path.exists(p):
+                  continue
+              with open(p, "r") as f:
+                  c = f.read()
+              
+              # Strip out ANY existing version variable assignments regardless of formatting
+              c = re.sub(r'^[ \t]*KSU_GIT_VERSION[ \t]*[:?+]*=.*$', '', c, flags=re.MULTILINE)
+              c = re.sub(r'^[ \t]*KSU_VERSION_TAG[ \t]*[:?+]*=.*$', '', c, flags=re.MULTILINE)
+              
+              # Nuke the conditional fallback blocks to prevent warning spam
+              c = c.replace('ifeq ($(KSU_GIT_VERSION),)', 'ifeq (1,0)')
+              c = c.replace('ifeq ($(KSU_VERSION_TAG),)', 'ifeq (1,0)')
+              c = c.replace('ifndef KSU_GIT_VERSION', 'ifeq (1,0)')
+              c = c.replace('ifndef KSU_VERSION_TAG', 'ifeq (1,0)')
+              
+              # Hardcode the true values at the very top of the file
+              c = f"KSU_GIT_VERSION := {ksun_commits}\nKSU_VERSION_TAG := {ksun_tag}\n" + c
+              
+              with open(p, "w") as f:
+                  f.write(c)
           EOF
           
           # Run the pure Python script
