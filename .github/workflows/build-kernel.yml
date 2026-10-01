@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Release Version
-      CUSTOM_KERNEL_VERSION: "1.15"
+      CUSTOM_KERNEL_VERSION: "1.16"
     steps:
       - name: Free Runner Disk Space
         run: |
@@ -76,17 +76,10 @@ jobs:
         run: |
           cd workspace/aosp
           
-          # 1. Manually Clone KernelSU-Next (SuSFS-Integrated Branch via pershoot)
-          # We bypass setup.sh entirely to prevent it from pulling the mainstream repo
-          git clone https://github.com/pershoot/KernelSU-Next.git -b next-susfs KernelSU-Next
-          
-          # Manually link it into the kernel tree
-          ln -sf ../KernelSU-Next/kernel drivers/kernelsu
-          echo 'obj-y += kernelsu/' >> drivers/Makefile
-          sed -i '/source "drivers\/misc\/Kconfig"/a source "drivers\/kernelsu\/Kconfig"' drivers/Kconfig
+          # 1. Clone Official Mainstream KernelSU-Next (Native SuSFS Support)
+          git clone https://github.com/rifsxd/KernelSU-Next.git KernelSU-Next
           
           # --- DYNAMIC VERSION INJECTION ---
-          # Extract the real version from Git before Bazel's sandbox deletes the .git folder
           cd KernelSU-Next
           KSUN_TAG=$(git describe --tags --abbrev=0)
           KSUN_COMMITS=$(git rev-list --count HEAD)
@@ -94,13 +87,22 @@ jobs:
           
           echo "Detected KSUN Version: $KSUN_TAG (Commits: $KSUN_COMMITS)"
           
-          # Replace the git commands directly in the Makefiles to survive the Bazel sandbox
-          sed -i "s/git rev-list --count HEAD/echo $KSUN_COMMITS/g" KernelSU-Next/kernel/Kbuild KernelSU-Next/kernel/Makefile 2>/dev/null || true
-          sed -i "s/git describe --tags --abbrev=0/echo $KSUN_TAG/g" KernelSU-Next/kernel/Kbuild KernelSU-Next/kernel/Makefile 2>/dev/null || true
-          sed -i "s/git describe --tags/echo $KSUN_TAG/g" KernelSU-Next/kernel/Kbuild KernelSU-Next/kernel/Makefile 2>/dev/null || true
+          # Manually COPY it into the kernel tree (Bazel sandboxes destroy symlinks)
+          cp -r KernelSU-Next/kernel drivers/kernelsu
+          echo 'obj-y += kernelsu/' >> drivers/Makefile
+          sed -i '/source "drivers\/misc\/Kconfig"/a source "drivers\/kernelsu\/Kconfig"' drivers/Kconfig
+          
+          # Replace the git commands directly in the active Makefiles to survive the Bazel sandbox
+          sed -i "s/git rev-list --count HEAD/echo $KSUN_COMMITS/g" drivers/kernelsu/Kbuild drivers/kernelsu/Makefile 2>/dev/null || true
+          sed -i "s/git describe --tags --abbrev=0/echo $KSUN_TAG/g" drivers/kernelsu/Kbuild drivers/kernelsu/Makefile 2>/dev/null || true
+          sed -i "s/git describe --tags/echo $KSUN_TAG/g" drivers/kernelsu/Kbuild drivers/kernelsu/Makefile 2>/dev/null || true
+          
+          # Backup header stamps
+          sed -i "1s/^/KSU_GIT_VERSION := ${KSUN_COMMITS}\n/" drivers/kernelsu/Kbuild
+          sed -i "1s/^/KSU_VERSION_TAG := \"${KSUN_TAG}\"\n/" drivers/kernelsu/Kbuild
           # ---------------------------------
           
-          # 2. Inject SuSFS (Android 14 6.1 GKI tailored for KSUN via pershoot)
+          # 2. Inject SuSFS (Android 14 6.1 GKI patches)
           git clone https://gitlab.com/pershoot/susfs4ksu.git -b gki-android14-6.1-dev
           
           # Patch the GKI Kernel for SuSFS & Execve Hooks
@@ -340,10 +342,6 @@ jobs:
             echo 'ui_print "- Injecting Mediatek Firmware & Adapter Drivers...";'
             echo 'mount /data;'
             
-            echo 'ui_print "- Wiping old KSU/Next databases...";'
-            echo 'rm -rf /data/adb/ksu'
-            echo 'rm -rf /data/adb/ksud'
-            
             echo 'MOD_DIR="/data/adb/modules/twk_nethunter_adapters"'
             echo 'rm -rf $MOD_DIR'
             
@@ -356,7 +354,7 @@ jobs:
             echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
             echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
             echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-            echo 'echo "versionCode=115" >> $MOD_DIR/module.prop'
+            echo 'echo "versionCode=116" >> $MOD_DIR/module.prop'
             echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
             echo 'echo "description=Injects MT76 firmware for Panda adapters & modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
             
