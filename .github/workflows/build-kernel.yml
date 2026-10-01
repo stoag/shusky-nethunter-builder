@@ -94,25 +94,27 @@ jobs:
           
           # Bulletproof Python replacement (Standalone script to prevent Bash/YAML escaping issues)
           cat << 'EOF' > patch_ksu.py
-          import sys, os
+          import os, sys, re
 
           ksun_tag = sys.argv[1]
           ksun_commits = sys.argv[2]
 
-          for p in ["drivers/kernelsu/Kbuild", "drivers/kernelsu/Makefile"]:
-              if not os.path.exists(p):
+          print(f"[*] Patching KSU Makefiles -> Tag: {ksun_tag} | Commits: {ksun_commits}")
+
+          for path in ["drivers/kernelsu/Kbuild", "drivers/kernelsu/Makefile"]:
+              if not os.path.exists(path):
                   continue
-              with open(p, "r") as f:
-                  c = f.read()
               
-              # Physically replace the variable references with the literal values
-              c = c.replace('$(KSU_GIT_VERSION)', ksun_commits)
-              c = c.replace('${KSU_GIT_VERSION}', ksun_commits)
-              c = c.replace('$(KSU_VERSION_TAG)', ksun_tag)
-              c = c.replace('${KSU_VERSION_TAG}', ksun_tag)
+              with open(path, "r") as f:
+                  content = f.read()
               
-              with open(p, "w") as f:
-                  f.write(c)
+              # Intercept the $(shell ...) commands and replace the git logic with a hardcoded echo
+              content = re.sub(r"shell.*?git rev-list.*?HEAD", f"shell echo {ksun_commits}", content)
+              content = re.sub(r"shell.*?git describe.*?abbrev=0", f"shell echo {ksun_tag}", content)
+              
+              with open(path, "w") as f:
+                  f.write(content)
+              print(f"[*] Successfully injected version stamps into {path}")
           EOF
           
           # Run the pure Python script
