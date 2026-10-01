@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Release Version
-      CUSTOM_KERNEL_VERSION: "1.16"
+      CUSTOM_KERNEL_VERSION: "1.17"
     steps:
       - name: Free Runner Disk Space
         run: |
@@ -92,14 +92,11 @@ jobs:
           echo 'obj-y += kernelsu/' >> drivers/Makefile
           sed -i '/source "drivers\/misc\/Kconfig"/a source "drivers\/kernelsu\/Kconfig"' drivers/Kconfig
           
-          # Replace the git commands directly in the active Makefiles to survive the Bazel sandbox
-          sed -i "s/git rev-list --count HEAD/echo $KSUN_COMMITS/g" drivers/kernelsu/Kbuild drivers/kernelsu/Makefile 2>/dev/null || true
-          sed -i "s/git describe --tags --abbrev=0/echo $KSUN_TAG/g" drivers/kernelsu/Kbuild drivers/kernelsu/Makefile 2>/dev/null || true
-          sed -i "s/git describe --tags/echo $KSUN_TAG/g" drivers/kernelsu/Kbuild drivers/kernelsu/Makefile 2>/dev/null || true
-          
-          # Backup header stamps
-          sed -i "1s/^/KSU_GIT_VERSION := ${KSUN_COMMITS}\n/" drivers/kernelsu/Kbuild
-          sed -i "1s/^/KSU_VERSION_TAG := \"${KSUN_TAG}\"\n/" drivers/kernelsu/Kbuild
+          # Bruteforce the version numbers into the compiler config to bypass sandbox errors
+          sed -i '/ifeq ($(KSU_GIT_VERSION),)/,/endif/d' drivers/kernelsu/Kbuild 2>/dev/null || true
+          sed -i '/ifeq ($(KSU_VERSION_TAG),)/,/endif/d' drivers/kernelsu/Kbuild 2>/dev/null || true
+          sed -i "1iKSU_GIT_VERSION := $KSUN_COMMITS" drivers/kernelsu/Kbuild
+          sed -i "1iKSU_VERSION_TAG := \"$KSUN_TAG\"" drivers/kernelsu/Kbuild
           # ---------------------------------
           
           # 2. Inject SuSFS (Android 14 6.1 GKI patches)
@@ -354,7 +351,7 @@ jobs:
             echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
             echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
             echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-            echo 'echo "versionCode=116" >> $MOD_DIR/module.prop'
+            echo 'echo "versionCode=117" >> $MOD_DIR/module.prop'
             echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
             echo 'echo "description=Injects MT76 firmware for Panda adapters & modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
             
