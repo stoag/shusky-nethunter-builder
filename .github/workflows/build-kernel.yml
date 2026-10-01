@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Release Version
-      CUSTOM_KERNEL_VERSION: "1.11"
+      CUSTOM_KERNEL_VERSION: "1.12"
     steps:
       - name: Free Runner Disk Space
         run: |
@@ -88,16 +88,15 @@ jobs:
           
           echo "Detected KSUN Version: $KSUN_TAG (Commits: $KSUN_COMMITS)"
           
-          # Stamp the Kbuild file dynamically to fix the "Version 1" bug
-          sed -i "1s/^/KSU_GIT_VERSION := ${KSUN_COMMITS}\n/" KernelSU-Next/kernel/Kbuild
-          sed -i "1s/^/KSU_VERSION_TAG := \"${KSUN_TAG}\"\n/" KernelSU-Next/kernel/Kbuild
+          # Stamp the active Kbuild file inside the Android tree to fix the "Version 1" bug
+          sed -i "1s/^/KSU_GIT_VERSION := ${KSUN_COMMITS}\n/" drivers/kernelsu/Kbuild
+          sed -i "1s/^/KSU_VERSION_TAG := \"${KSUN_TAG}\"\n/" drivers/kernelsu/Kbuild
           # ---------------------------------
           
           # 2. Inject SuSFS (Android 14 6.1 GKI tailored for KSUN via pershoot)
           git clone https://gitlab.com/pershoot/susfs4ksu.git -b gki-android14-6.1-dev
           
-          # Patch the GKI Kernel for SuSFS & Execve Hooks 
-          # (Note: We skip patching KSUN itself because pershoot's branch is pre-patched)
+          # Patch the GKI Kernel for SuSFS & Execve Hooks
           patch -p1 --forward < susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch || true
           
           # Copy SuSFS Source Files into the Kernel Tree
@@ -350,7 +349,7 @@ jobs:
             echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
             echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
             echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-            echo 'echo "versionCode=111" >> $MOD_DIR/module.prop'
+            echo 'echo "versionCode=112" >> $MOD_DIR/module.prop'
             echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
             echo 'echo "description=Injects MT76 firmware for Panda adapters & modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
             
@@ -374,7 +373,6 @@ jobs:
 
           find out/ -type f -name "init_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-init_boot.img \;
           find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_dlkm.img \;
-          find out/ -type f -name "vendor_kernel_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_kernel_boot.img \;
           find out/ -type f -name "system_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-system_dlkm.img \;
           
           echo "VERIFYING BUNDLE CONTENTS:"
