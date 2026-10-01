@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Release Version
-      CUSTOM_KERNEL_VERSION: "1.14"
+      CUSTOM_KERNEL_VERSION: "1.15"
     steps:
       - name: Free Runner Disk Space
         run: |
@@ -76,8 +76,14 @@ jobs:
         run: |
           cd workspace/aosp
           
-          # 1. Inject KernelSU-Next (SuSFS-Integrated Branch via pershoot)
-          curl -LSs "https://raw.githubusercontent.com/pershoot/KernelSU-Next/refs/heads/next-susfs/kernel/setup.sh" | bash -s
+          # 1. Manually Clone KernelSU-Next (SuSFS-Integrated Branch via pershoot)
+          # We bypass setup.sh entirely to prevent it from pulling the mainstream repo
+          git clone https://github.com/pershoot/KernelSU-Next.git -b next-susfs KernelSU-Next
+          
+          # Manually link it into the kernel tree
+          ln -sf ../KernelSU-Next/kernel drivers/kernelsu
+          echo 'obj-y += kernelsu/' >> drivers/Makefile
+          sed -i '/source "drivers\/misc\/Kconfig"/a source "drivers\/kernelsu\/Kconfig"' drivers/Kconfig
           
           # --- DYNAMIC VERSION INJECTION ---
           # Extract the real version from Git before Bazel's sandbox deletes the .git folder
@@ -88,9 +94,10 @@ jobs:
           
           echo "Detected KSUN Version: $KSUN_TAG (Commits: $KSUN_COMMITS)"
           
-          # Stamp the true file path directly at Line 1 to bypass the sandbox wipe & symlink traps
-          sed -i "1s/^/KSU_GIT_VERSION := ${KSUN_COMMITS}\n/" KernelSU-Next/kernel/Kbuild
-          sed -i "1s/^/KSU_VERSION_TAG := \"${KSUN_TAG}\"\n/" KernelSU-Next/kernel/Kbuild
+          # Replace the git commands directly in the Makefiles to survive the Bazel sandbox
+          sed -i "s/git rev-list --count HEAD/echo $KSUN_COMMITS/g" KernelSU-Next/kernel/Kbuild KernelSU-Next/kernel/Makefile 2>/dev/null || true
+          sed -i "s/git describe --tags --abbrev=0/echo $KSUN_TAG/g" KernelSU-Next/kernel/Kbuild KernelSU-Next/kernel/Makefile 2>/dev/null || true
+          sed -i "s/git describe --tags/echo $KSUN_TAG/g" KernelSU-Next/kernel/Kbuild KernelSU-Next/kernel/Makefile 2>/dev/null || true
           # ---------------------------------
           
           # 2. Inject SuSFS (Android 14 6.1 GKI tailored for KSUN via pershoot)
@@ -349,7 +356,7 @@ jobs:
             echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
             echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
             echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-            echo 'echo "versionCode=114" >> $MOD_DIR/module.prop'
+            echo 'echo "versionCode=115" >> $MOD_DIR/module.prop'
             echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
             echo 'echo "description=Injects MT76 firmware for Panda adapters & modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
             
