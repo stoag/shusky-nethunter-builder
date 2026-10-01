@@ -94,7 +94,7 @@ jobs:
           
           # Bulletproof Python replacement (Standalone script to prevent Bash/YAML escaping issues)
           cat << 'EOF' > patch_ksu.py
-          import sys, re, os
+          import sys, os
 
           ksun_tag = sys.argv[1]
           ksun_commits = sys.argv[2]
@@ -105,18 +105,11 @@ jobs:
               with open(p, "r") as f:
                   c = f.read()
               
-              # Strip out ANY existing version variable assignments regardless of formatting
-              c = re.sub(r'^[ \t]*KSU_GIT_VERSION[ \t]*[:?+]*=.*$', '', c, flags=re.MULTILINE)
-              c = re.sub(r'^[ \t]*KSU_VERSION_TAG[ \t]*[:?+]*=.*$', '', c, flags=re.MULTILINE)
-              
-              # Nuke the conditional fallback blocks to prevent warning spam
-              c = c.replace('ifeq ($(KSU_GIT_VERSION),)', 'ifeq (1,0)')
-              c = c.replace('ifeq ($(KSU_VERSION_TAG),)', 'ifeq (1,0)')
-              c = c.replace('ifndef KSU_GIT_VERSION', 'ifeq (1,0)')
-              c = c.replace('ifndef KSU_VERSION_TAG', 'ifeq (1,0)')
-              
-              # Hardcode the true values at the very top of the file
-              c = f"KSU_GIT_VERSION := {ksun_commits}\nKSU_VERSION_TAG := {ksun_tag}\n" + c
+              # Physically replace the variable references with the literal values
+              c = c.replace('$(KSU_GIT_VERSION)', ksun_commits)
+              c = c.replace('${KSU_GIT_VERSION}', ksun_commits)
+              c = c.replace('$(KSU_VERSION_TAG)', ksun_tag)
+              c = c.replace('${KSU_VERSION_TAG}', ksun_tag)
               
               with open(p, "w") as f:
                   f.write(c)
