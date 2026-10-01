@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Release Version
-      CUSTOM_KERNEL_VERSION: "1.10"
+      CUSTOM_KERNEL_VERSION: "1.11"
     steps:
       - name: Free Runner Disk Space
         run: |
@@ -79,14 +79,25 @@ jobs:
           # 1. Inject KernelSU-Next (SuSFS-Integrated Branch via pershoot)
           curl -LSs "https://raw.githubusercontent.com/pershoot/KernelSU-Next/refs/heads/next-susfs/kernel/setup.sh" | bash -s
           
-          # FIX: Force KSUN Version to bypass the Bazel sandbox .git wipe
-          sed -i '1s/^/KSU_GIT_VERSION := 11956\n/' KernelSU-Next/Kbuild
-          sed -i '1s/^/KSU_VERSION_TAG := "v3.4.0"\n/' KernelSU-Next/Kbuild
+          # --- DYNAMIC VERSION INJECTION ---
+          # Extract the real version from Git before Bazel's sandbox deletes the .git folder
+          cd KernelSU-Next
+          KSUN_TAG=$(git describe --tags --abbrev=0)
+          KSUN_COMMITS=$(git rev-list --count HEAD)
+          cd ..
+          
+          echo "Detected KSUN Version: $KSUN_TAG (Commits: $KSUN_COMMITS)"
+          
+          # Stamp the Kbuild file dynamically to fix the "Version 1" bug
+          sed -i "1s/^/KSU_GIT_VERSION := ${KSUN_COMMITS}\n/" KernelSU-Next/kernel/Kbuild
+          sed -i "1s/^/KSU_VERSION_TAG := \"${KSUN_TAG}\"\n/" KernelSU-Next/kernel/Kbuild
+          # ---------------------------------
           
           # 2. Inject SuSFS (Android 14 6.1 GKI tailored for KSUN via pershoot)
           git clone https://gitlab.com/pershoot/susfs4ksu.git -b gki-android14-6.1-dev
           
-          # Patch the GKI Kernel for SuSFS & Execve Hooks
+          # Patch the GKI Kernel for SuSFS & Execve Hooks 
+          # (Note: We skip patching KSUN itself because pershoot's branch is pre-patched)
           patch -p1 --forward < susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch || true
           
           # Copy SuSFS Source Files into the Kernel Tree
@@ -339,7 +350,7 @@ jobs:
             echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
             echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
             echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-            echo 'echo "versionCode=110" >> $MOD_DIR/module.prop'
+            echo 'echo "versionCode=111" >> $MOD_DIR/module.prop'
             echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
             echo 'echo "description=Injects MT76 firmware for Panda adapters & modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
             
