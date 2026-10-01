@@ -92,33 +92,21 @@ jobs:
           echo 'obj-y += kernelsu/' >> drivers/Makefile
           sed -i '/source "drivers\/misc\/Kconfig"/a source "drivers\/kernelsu\/Kconfig"' drivers/Kconfig
           
-          # Bulletproof Python replacement (Standalone script to prevent Bash/YAML escaping issues)
-          cat << 'EOF' > patch_ksu.py
-          import os, sys, re
-
-          ksun_tag = sys.argv[1]
-          ksun_commits = sys.argv[2]
-
-          print(f"[*] Patching KSU Makefiles -> Tag: {ksun_tag} | Commits: {ksun_commits}")
-
-          for path in ["drivers/kernelsu/Kbuild", "drivers/kernelsu/Makefile"]:
-              if not os.path.exists(path):
-                  continue
-              
-              with open(path, "r") as f:
-                  content = f.read()
-              
-              # Intercept the $(shell ...) commands and replace the git logic with a hardcoded echo
-              content = re.sub(r"shell.*?git rev-list.*?HEAD", f"shell echo {ksun_commits}", content)
-              content = re.sub(r"shell.*?git describe.*?abbrev=0", f"shell echo {ksun_tag}", content)
-              
-              with open(path, "w") as f:
-                  f.write(content)
-              print(f"[*] Successfully injected version stamps into {path}")
-          EOF
-          
-          # Run the pure Python script
-          python3 patch_ksu.py "$KSUN_TAG" "$KSUN_COMMITS"
+          # ---------------------------------
+          # BULLETPROOF VERSION OVERRIDE
+          # ---------------------------------
+          for KFILE in drivers/kernelsu/Kbuild drivers/kernelsu/Makefile; do
+              if [ -f "$KFILE" ]; then
+                  # 1. Patch the fallback values directly in the file
+                  sed -i "s/KSU_GIT_VERSION := 1/KSU_GIT_VERSION := $KSUN_COMMITS/g" "$KFILE"
+                  sed -i "s/KSU_VERSION_TAG := v0.0.1/KSU_VERSION_TAG := $KSUN_TAG/g" "$KFILE"
+                  
+                  # 2. Force the compiler to use our exact macros, completely overriding Make's logic
+                  echo "" >> "$KFILE"
+                  echo "ccflags-y += -UKSU_VERSION -DKSU_VERSION=$KSUN_COMMITS" >> "$KFILE"
+                  echo "ccflags-y += -UKSU_VERSION_TAG -DKSU_VERSION_TAG=\\\"$KSUN_TAG\\\"" >> "$KFILE"
+              fi
+          done
           # ---------------------------------
           
           # 2. Inject SuSFS (Android 14 6.1 GKI patches)
