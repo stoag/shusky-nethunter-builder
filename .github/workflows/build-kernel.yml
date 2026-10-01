@@ -93,14 +93,12 @@ jobs:
           sed -i '/source "drivers\/misc\/Kconfig"/a source "drivers\/kernelsu\/Kconfig"' drivers/Kconfig
           
           # ---------------------------------
-          # THE NUCLEAR OPTION: HARDCODE INTO SOURCE
+          # HIJACK THE BAZEL FALLBACK
           # ---------------------------------
-          # Since Bazel strips .git and overrides Makefile flags, we inject the
-          # version directly into the main KernelSU header file. 
-          sed -i "1i #undef KSU_VERSION" drivers/kernelsu/ksu.h
-          sed -i "2i #define KSU_VERSION $KSUN_COMMITS" drivers/kernelsu/ksu.h
-          sed -i "3i #undef KSU_VERSION_TAG" drivers/kernelsu/ksu.h
-          sed -i "4i #define KSU_VERSION_TAG \"$KSUN_TAG\"" drivers/kernelsu/ksu.h
+          # Bazel deletes the .git folder, forcing the Makefile to use its fallback values.
+          # Instead of fighting the sandbox, we simply rewrite the fallback values themselves!
+          sed -i "s/KSU_GIT_VERSION := 1/KSU_GIT_VERSION := $KSUN_COMMITS/g" drivers/kernelsu/Makefile drivers/kernelsu/Kbuild || true
+          sed -i "s/KSU_VERSION_TAG := v0.0.1/KSU_VERSION_TAG := $KSUN_TAG/g" drivers/kernelsu/Makefile drivers/kernelsu/Kbuild || true
           # ---------------------------------
           
           # 2. Inject SuSFS (Android 14 6.1 GKI patches)
