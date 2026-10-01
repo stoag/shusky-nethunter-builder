@@ -93,18 +93,16 @@ jobs:
           sed -i '/source "drivers\/misc\/Kconfig"/a source "drivers\/kernelsu\/Kconfig"' drivers/Kconfig
           
           # ---------------------------------
-          # BULLETPROOF VERSION OVERRIDE
+          # FLAWLESS BAZEL SANDBOX BYPASS
           # ---------------------------------
+          # Prepend variables to the absolute top of the Makefiles so GNU Make 
+          # skips the git checks and fallbacks completely.
           for KFILE in drivers/kernelsu/Kbuild drivers/kernelsu/Makefile; do
               if [ -f "$KFILE" ]; then
-                  # 1. Patch the fallback values directly in the file
-                  sed -i "s/KSU_GIT_VERSION := 1/KSU_GIT_VERSION := $KSUN_COMMITS/g" "$KFILE"
-                  sed -i "s/KSU_VERSION_TAG := v0.0.1/KSU_VERSION_TAG := $KSUN_TAG/g" "$KFILE"
-                  
-                  # 2. Force the compiler to use our exact macros, completely overriding Make's logic
-                  echo "" >> "$KFILE"
-                  echo "ccflags-y += -UKSU_VERSION -DKSU_VERSION=$KSUN_COMMITS" >> "$KFILE"
-                  echo "ccflags-y += -UKSU_VERSION_TAG -DKSU_VERSION_TAG=\\\"$KSUN_TAG\\\"" >> "$KFILE"
+                  echo "KSU_GIT_VERSION := $KSUN_COMMITS" > /tmp/ksu_stamp.txt
+                  echo "KSU_VERSION_TAG := $KSUN_TAG" >> /tmp/ksu_stamp.txt
+                  cat "$KFILE" >> /tmp/ksu_stamp.txt
+                  mv /tmp/ksu_stamp.txt "$KFILE"
               fi
           done
           # ---------------------------------
