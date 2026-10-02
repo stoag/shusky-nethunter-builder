@@ -15,7 +15,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev libelf-dev bc git wget curl ccache python3
           
-          # Install Google's repo tool so source synchronization succeeds
+          # Install Google's repo tool
           mkdir -p ~/bin
           curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
           chmod +x ~/bin/repo
@@ -23,7 +23,8 @@ jobs:
 
       - name: Setup Bazel / Kleaf Build Tooling
         run: |
-          repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-6.1
+          # NOTE: Use your device/vendor specific kernel manifest URL here if it differs from the generic upstream one
+          repo init -u https://android.googlesource.com/kernel/manifest -b android14-6.1
           repo sync -c --no-tags --no-clone-bundle -j$(nproc)
           echo "Initializing Bazel toolchain..."
 
