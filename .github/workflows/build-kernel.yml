@@ -14,10 +14,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev libelf-dev bc git wget curl ccache python3
+          
+          # Install Google's repo tool so source synchronization succeeds
+          mkdir -p ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod +x ~/bin/repo
+          echo "$HOME/bin" >> $GITHUB_PATH
 
       - name: Setup Bazel / Kleaf Build Tooling
         run: |
-          # Initialize the repo manifest and sync the Android kernel source tree so 'common/' is present
           repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-6.1
           repo sync -c --no-tags --no-clone-bundle -j$(nproc)
           echo "Initializing Bazel toolchain..."
@@ -117,7 +122,6 @@ jobs:
 
       - name: Compile Kernel via Bazel
         run: |
-          # Run your standard Bazel/Kleaf build command for Pixel 8 Pro (shusky)
           tools/bazel run //private/devices/google/shusky:kernel_ui_extras -- //dev:build_pixel_kernel
 
       - name: Package Artifacts (AnyKernel3)
@@ -131,5 +135,4 @@ jobs:
       - name: Send Completion Notification Ping
         if: always()
         run: |
-          # Add your webhook / telegram ping command back here (e.g., curl to your notification bot)
           echo "Build finished! Sending completion ping..."
