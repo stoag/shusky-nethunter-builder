@@ -1,4 +1,4 @@
-name: Build Custom Pixel 8 Pro Kernel (KSUN + Drivers)
+ name: Build Custom Pixel 8 Pro Kernel (KSUN + Drivers)
 
 on:
   workflow_dispatch:
@@ -17,7 +17,9 @@ jobs:
 
       - name: Setup Bazel / Kleaf Build Tooling
         run: |
-          # [Insert your base environment setup and manifest synchronization steps here]
+          # Initialize the repo manifest and sync the Android kernel source tree so 'common/' is present
+          repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-6.1
+          repo sync -c --no-tags --no-clone-bundle -j$(nproc)
           echo "Initializing Bazel toolchain..."
 
       - name: Integrate Upstream KernelSU-Next (Pure Built-In) & Wireless Drivers
