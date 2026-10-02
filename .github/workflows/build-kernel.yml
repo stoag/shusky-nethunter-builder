@@ -125,3 +125,9 @@ jobs:
           path: |
             out/
             AnyKernel3/
+
+      - name: Send Completion Notification Ping
+        if: always()
+        run: |
+          # Add your webhook / telegram ping command back here (e.g., curl to your notification bot)
+          echo "Build finished! Sending completion ping..."
