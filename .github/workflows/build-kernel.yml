@@ -74,7 +74,7 @@ jobs:
         run: |
           cd workspace/aosp
           
-          # 1. Inject KernelSU Next Inline Source Code (The official robust setup method)
+          # 1. Inject KernelSU Next Inline Source Code (Official robust setup method)
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
           
           # 2. Append Configs (NetHunter, MT76, 8812AU, KSU)
@@ -325,6 +325,9 @@ jobs:
           find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_dlkm.img \;
           find out/ -type f -name "vendor_kernel_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_kernel_boot.img \;
           find out/ -type f -name "system_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-system_dlkm.img \;
+
+          echo "VERIFYING BUNDLE CONTENTS:"
+          ls -lh bundle/
 
       - name: Upload Flat Bundle Artifacts
         uses: actions/upload-artifact@v4
