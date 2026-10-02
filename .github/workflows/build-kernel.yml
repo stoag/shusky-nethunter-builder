@@ -74,10 +74,14 @@ jobs:
         run: |
           cd workspace/aosp
           
+          # Break MAC80211 LEDs natively in Kconfig to prevent core linker panics for MediaTek/Ralink
+          find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +
+          sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig
+          
           # 1. Inject KernelSU Next Inline Source Code (Official robust setup method)
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
           
-          # 2. Append Configs (NetHunter, MT76, 8812AU, KSU)
+          # 2. Append Configs (NetHunter, MT76, Ralink, 8812AU, KSU)
           {
             echo '# Custom Kernel Signature'
             echo 'CONFIG_LOCALVERSION="-twk.v${{ env.CUSTOM_KERNEL_VERSION }}"'
@@ -88,14 +92,24 @@ jobs:
             echo 'CONFIG_CFG80211_CERTIFICATION_ONUS=y'
             echo 'CONFIG_WIRELESS=y'
             
-            echo '# NATIVE: MediaTek MT7612U (Panda PAU0D)'
+            echo '# MODULE: MediaTek MT7612U (Panda PAU0D)'
             echo 'CONFIG_WLAN_VENDOR_MEDIATEK=y'
-            echo 'CONFIG_MT76_CORE=y'
-            echo 'CONFIG_MT76_USB=y'
-            echo 'CONFIG_MT76x02_LIB=y'
-            echo 'CONFIG_MT76x02_USB=y'
-            echo 'CONFIG_MT76x2_COMMON=y'
-            echo 'CONFIG_MT76x2U=y'
+            echo 'CONFIG_MT76_CORE=m'
+            echo 'CONFIG_MT76_USB=m'
+            echo 'CONFIG_MT76x02_LIB=m'
+            echo 'CONFIG_MT76x02_USB=m'
+            echo 'CONFIG_MT76x2_COMMON=m'
+            echo 'CONFIG_MT76x2U=m'
+
+            echo '# MODULE: Ralink RT3070/RT5370'
+            echo 'CONFIG_WLAN_VENDOR_RALINK=y'
+            echo 'CONFIG_RT2X00=m'
+            echo 'CONFIG_RT2800USB=m'
+            echo 'CONFIG_RT2800USB_RT3573=y'
+            echo 'CONFIG_RT2800USB_RT53XX=y'
+            echo 'CONFIG_RT2800USB_RT55XX=y'
+            echo 'CONFIG_RT2800USB_UNKNOWN=y'
+            echo 'CONFIG_RT2X00_LIB_LEDS=n'
             
             echo '# MODULE: Realtek RTL8812AU'
             echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
@@ -165,6 +179,7 @@ jobs:
             echo 'dev_coredumpv'
             echo 'dev_set_threaded'
             echo 'device_release_driver'
+            echo 'firmware_request_cache'
             echo 'flush_signals'
             echo 'gpiod_get_optional'
             echo 'gpiod_put'
@@ -241,12 +256,12 @@ jobs:
               fi
           done
 
-      - name: Track Loadable Modules in Bazel (MT76 + 8812AU)
+      - name: Track Loadable Modules in Bazel (MT76 + Ralink + 8812AU)
         run: |
           cd workspace/aosp
           wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
           chmod +x buildozer
-          ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko' //private/devices/google/shusky:kernel
+          ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko drivers/net/wireless/ralink/rt2x00/rt2x00lib.ko drivers/net/wireless/ralink/rt2x00/rt2x00usb.ko drivers/net/wireless/ralink/rt2x00/rt2800lib.ko drivers/net/wireless/ralink/rt2x00/rt2800usb.ko' //private/devices/google/shusky:kernel
 
       - name: Upload Build Script as Artifact
         uses: actions/upload-artifact@v4
@@ -276,22 +291,24 @@ jobs:
           
           cp out/shusky/dist/Image.lz4 AnyKernel3/
           
-          # Fetch Official Linux Firmware for MT7612U
+          # Fetch Official Linux Firmware for MT7612U and RT3070
           mkdir -p AnyKernel3/twk_firmware/mediatek
           curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u.bin
           curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u_rom_patch.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u_rom_patch.bin
+          curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/rt2870.bin" -o AnyKernel3/twk_firmware/rt2870.bin
           
-          # Copy the Realtek driver AND the MediaTek modular stack
+          # Copy the Realtek, MediaTek, and Ralink modular stacks
           mkdir -p AnyKernel3/twk_drivers
           find out/shusky/dist -name "8812au.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
           find out/shusky/dist -name "mt76*.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
+          find out/shusky/dist -name "rt2*.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
           
           sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (v${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh
           
           {
             echo '# --- TWEAKER KERNEL HYBRID INJECTION ---'
             echo 'ui_print " ";'
-            echo 'ui_print "- Injecting Mediatek Firmware & Adapter Drivers...";'
+            echo 'ui_print "- Injecting Firmware & Modular Adapters...";'
             echo 'mount /data;'
             echo 'MOD_DIR="/data/adb/modules/twk_nethunter_adapters"'
             echo 'rm -rf $MOD_DIR'
@@ -304,17 +321,25 @@ jobs:
             echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
             echo 'echo "versionCode=120" >> $MOD_DIR/module.prop'
             echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
-            echo 'echo "description=Injects MT76 firmware for Panda adapters & modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
+            echo 'echo "description=Injects firmware & modular drivers for Realtek, MTK, and Ralink." >> $MOD_DIR/module.prop'
             echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
+            
             echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76.ko" >> $MOD_DIR/service.sh'
             echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76-usb.ko" >> $MOD_DIR/service.sh'
             echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x02-lib.ko" >> $MOD_DIR/service.sh'
             echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x02-usb.ko" >> $MOD_DIR/service.sh'
             echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x2-common.ko" >> $MOD_DIR/service.sh'
             echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x2u.ko" >> $MOD_DIR/service.sh'
+            
+            echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/rt2x00lib.ko" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/rt2x00usb.ko" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/rt2800lib.ko" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/rt2800usb.ko" >> $MOD_DIR/service.sh'
+            
             echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/8812au.ko rtw_drv_log_level=6 rtw_power_mgnt=0 rtw_switch_usb_mode=0" >> $MOD_DIR/service.sh'
+            
             echo 'chmod +x $MOD_DIR/service.sh'
-            echo 'ui_print "- Dual Adapter support integrated successfully!";'
+            echo 'ui_print "- Arsenal adapters integrated successfully!";'
           } >> AnyKernel3/anykernel.sh
           
           cd AnyKernel3
