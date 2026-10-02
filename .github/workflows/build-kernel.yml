@@ -23,8 +23,7 @@ jobs:
 
       - name: Setup Bazel / Kleaf Build Tooling
         run: |
-          # NOTE: Use your device/vendor specific kernel manifest URL here if it differs from the generic upstream one
-          repo init -u https://android.googlesource.com/kernel/manifest -b android14-6.1
+          repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-6.1
           repo sync -c --no-tags --no-clone-bundle -j$(nproc)
           echo "Initializing Bazel toolchain..."
 
