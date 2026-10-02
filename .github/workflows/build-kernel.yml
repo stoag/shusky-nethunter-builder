@@ -22,6 +22,9 @@ jobs:
 
       - name: Integrate Upstream KernelSU-Next (Pure Built-In) & Wireless Drivers
         run: |
+          # Navigate into your kernel source directory (adjust 'common' if your manifest uses a different path)
+          cd common
+          
           # 1. Clone Official Upstream KernelSU-Next (No SuSFS)
           git clone https://github.com/KernelSU-Next/KernelSU-Next.git KernelSU-Next
 
@@ -49,6 +52,9 @@ jobs:
 
       - name: Apply Defconfig Configurations
         run: |
+          # Navigate back to root if needed, or point defconfig to common/arch/arm64/configs/gki_defconfig
+          cd common
+          
           # 3. Append Configs (NetHunter Wireless, MT76, 8812AU, Pure KSUN - NO SuSFS)
           {
             echo '# Custom Kernel Signature'
@@ -115,6 +121,9 @@ jobs:
 
       - name: Compile Kernel via Bazel
         run: |
+          # Return to root workspace directory if you changed directories for defconfig
+          cd ..
+          
           # Run your standard Bazel/Kleaf build command for Pixel 8 Pro (shusky)
           tools/bazel run //private/devices/google/shusky:kernel_ui_extras -- //dev:build_pixel_kernel
 
