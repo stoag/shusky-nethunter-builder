@@ -22,9 +22,6 @@ jobs:
 
       - name: Integrate Upstream KernelSU-Next (Pure Built-In) & Wireless Drivers
         run: |
-          # Navigate into your kernel source directory (adjust 'common' if your manifest uses a different path)
-          cd common
-          
           # 1. Clone Official Upstream KernelSU-Next (No SuSFS)
           git clone https://github.com/KernelSU-Next/KernelSU-Next.git KernelSU-Next
 
@@ -36,13 +33,13 @@ jobs:
 
           echo "Detected KSUN Version: $KSUN_TAG (Commits: $KSUN_COMMITS)"
 
-          # Copy into kernel tree
-          cp -r KernelSU-Next/kernel drivers/kernelsu
-          echo 'obj-y += kernelsu/' >> drivers/Makefile
-          sed -i '/source "drivers\/misc\/Kconfig"/a source "drivers\/kernelsu\/Kconfig"' drivers/Kconfig
+          # Copy into kernel tree (adjusting path to point directly into the synced tree)
+          cp -r KernelSU-Next/kernel common/drivers/kernelsu
+          echo 'obj-y += kernelsu/' >> common/drivers/Makefile
+          sed -i '/source "drivers\/misc\/Kconfig"/a source "drivers\/kernelsu\/Kconfig"' common/drivers/Kconfig
 
           # The Bazel Bypass for version variables
-          for KFILE in drivers/kernelsu/Makefile drivers/kernelsu/Kbuild; do
+          for KFILE in common/drivers/kernelsu/Makefile common/drivers/kernelsu/Kbuild; do
               if [ -f "$KFILE" ]; then
                   sed -i "1i KSU_GIT_VERSION := $KSUN_COMMITS" "$KFILE"
                   sed -i "2i KSU_GIT_TAG := $KSUN_TAG" "$KFILE"
@@ -52,9 +49,6 @@ jobs:
 
       - name: Apply Defconfig Configurations
         run: |
-          # Navigate back to root if needed, or point defconfig to common/arch/arm64/configs/gki_defconfig
-          cd common
-          
           # 3. Append Configs (NetHunter Wireless, MT76, 8812AU, Pure KSUN - NO SuSFS)
           {
             echo '# Custom Kernel Signature'
@@ -117,13 +111,10 @@ jobs:
             echo 'CONFIG_WIREGUARD=y'
             
             echo 'CONFIG_BT_HCIBTUSB=m'
-          } >> arch/arm64/configs/gki_defconfig
+          } >> common/arch/arm64/configs/gki_defconfig
 
       - name: Compile Kernel via Bazel
         run: |
-          # Return to root workspace directory if you changed directories for defconfig
-          cd ..
-          
           # Run your standard Bazel/Kleaf build command for Pixel 8 Pro (shusky)
           tools/bazel run //private/devices/google/shusky:kernel_ui_extras -- //dev:build_pixel_kernel
 
