@@ -33,7 +33,7 @@ jobs:
 
           echo "Detected KSUN Version: $KSUN_TAG (Commits: $KSUN_COMMITS)"
 
-          # Copy into kernel tree (adjusting path to point directly into the synced tree)
+          # Copy directly into the common kernel tree paths
           cp -r KernelSU-Next/kernel common/drivers/kernelsu
           echo 'obj-y += kernelsu/' >> common/drivers/Makefile
           sed -i '/source "drivers\/misc\/Kconfig"/a source "drivers\/kernelsu\/Kconfig"' common/drivers/Kconfig
