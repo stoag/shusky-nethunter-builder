@@ -1,4 +1,4 @@
- name: Build Custom Pixel 8 Pro Kernel (KSUN + Drivers)
+name: Build Custom Pixel 8 Pro Kernel (KSUN + Drivers)
 
 on:
   workflow_dispatch:
