@@ -38,7 +38,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-bazel-shusky-
 
-      - name: Initialize & Sync Google Kernel Source (Shusky)
+      - name: Initialize & Sync Google Kernel Source
         run: |
           mkdir -p workspace
           cd workspace
@@ -62,52 +62,22 @@ jobs:
           sed -i 's/CONFIG_RTW_GRO = y/CONFIG_RTW_GRO = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
           sed -i 's/CONFIG_RTW_NETIF_SG = y/CONFIG_RTW_NETIF_SG = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
           sed -i 's/CONFIG_LOAD_PHY_PARA_FROM_FILE = y/CONFIG_LOAD_PHY_PARA_FROM_FILE = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
+          
+          # Strictly disable Concurrent Mode to prevent runtime crashes on the 8812AU
           sed -i 's/ccflags-y += -DCONFIG_CONCURRENT_MODE/#ccflags-y += -DCONFIG_CONCURRENT_MODE/g' drivers/net/wireless/realtek/rtl8812au/Makefile
           
           echo 'ccflags-y += -DCONFIG_USE_USB_BUFFER_ALLOC_TX -DCONFIG_USE_USB_BUFFER_ALLOC_RX' >> drivers/net/wireless/realtek/rtl8812au/Makefile
           echo 'obj-y += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
           echo 'obj-m := $(MODULE_NAME).o' >> drivers/net/wireless/realtek/rtl8812au/Makefile
 
-      - name: Integrate Upstream KernelSU-Next (Pure Built-In) & NetHunter Configs
+      - name: Apply KernelSU Next & NetHunter Configs
         run: |
           cd workspace/aosp
           
-          # 1. Clone Official Upstream KernelSU-Next (No SuSFS)
-          git clone https://github.com/KernelSU-Next/KernelSU-Next.git KernelSU-Next
+          # 1. Inject KernelSU Next Inline Source Code (The official robust setup method)
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
           
-          # --- DYNAMIC VERSION INJECTION ---
-          cd KernelSU-Next
-          KSUN_TAG=$(git describe --tags --abbrev=0)
-          KSUN_COMMITS=$(git rev-list --count HEAD)
-          cd ..
-          
-          echo "Detected KSUN Version: $KSUN_TAG (Commits: $KSUN_COMMITS)"
-          
-          # Copy into kernel tree
-          cp -r KernelSU-Next/kernel drivers/kernelsu
-          echo 'obj-y += kernelsu/' >> drivers/Makefile
-          sed -i '/source "drivers\/misc\/Kconfig"/a source "drivers\/kernelsu\/Kconfig"' drivers/Kconfig
-          
-          cat << 'EOF' > patch_ksu.py
-          import os, sys, re
-          ksun_tag = sys.argv[1]
-          ksun_commits = sys.argv[2]
-          print(f"[*] Patching KSU Makefiles -> Tag: {ksun_tag} | Commits: {ksun_commits}")
-          for path in ["drivers/kernelsu/Kbuild", "drivers/kernelsu/Makefile"]:
-              if not os.path.exists(path):
-                  continue
-              with open(path, "r") as f:
-                  content = f.read()
-              content = re.sub(r"shell.*?git rev-list.*?HEAD", f"shell echo {ksun_commits}", content)
-              content = re.sub(r"shell.*?git describe.*?abbrev=0", f"shell echo {ksun_tag}", content)
-              with open(path, "w") as f:
-                  f.write(content)
-          print(f"[*] Successfully injected version stamps into {path}")
-          EOF
-          
-          python3 patch_ksu.py "$KSUN_TAG" "$KSUN_COMMITS"
-          
-          # 2. Append Configs (NetHunter Wireless, MT76, 8812AU, Pure KSUN - NO SuSFS)
+          # 2. Append Configs (NetHunter, MT76, 8812AU, KSU)
           {
             echo '# Custom Kernel Signature'
             echo 'CONFIG_LOCALVERSION="-twk.v${{ env.CUSTOM_KERNEL_VERSION }}"'
@@ -134,7 +104,7 @@ jobs:
             echo 'CONFIG_RTW88_USB=n'
             echo 'CONFIG_RTL8812AU=m'
 
-            echo '# Inline KernelSU-Next (Built-in Mode)'
+            echo '# Inline KernelSU Next'
             echo 'CONFIG_KSU=y'
             echo 'CONFIG_TRIM_NONLISTED_KMI=n'
             
@@ -267,6 +237,7 @@ jobs:
                   chmod u+w "$list_file" || true
                   echo "" >> "$list_file"
                   cat missing_symbols.txt >> "$list_file"
+                  echo "Patched KMI Symbol List: $list_file"
               fi
           done
 
@@ -276,6 +247,12 @@ jobs:
           wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
           chmod +x buildozer
           ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko' //private/devices/google/shusky:kernel
+
+      - name: Upload Build Script as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixel-build-script
+          path: workspace/build_shusky.sh
 
       - name: Compile Pixel 8 Pro Kernel via Bazel
         run: |
@@ -299,10 +276,12 @@ jobs:
           
           cp out/shusky/dist/Image.lz4 AnyKernel3/
           
+          # Fetch Official Linux Firmware for MT7612U
           mkdir -p AnyKernel3/twk_firmware/mediatek
           curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u.bin
           curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u_rom_patch.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u_rom_patch.bin
           
+          # Copy the Realtek driver AND the MediaTek modular stack
           mkdir -p AnyKernel3/twk_drivers
           find out/shusky/dist -name "8812au.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
           find out/shusky/dist -name "mt76*.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
@@ -344,6 +323,7 @@ jobs:
 
           find out/ -type f -name "init_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-init_boot.img \;
           find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_dlkm.img \;
+          find out/ -type f -name "vendor_kernel_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_kernel_boot.img \;
           find out/ -type f -name "system_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-system_dlkm.img \;
 
       - name: Upload Flat Bundle Artifacts
