@@ -1,6 +1,11 @@
 name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU + MT76/RTL8812AU
 
+
 on: 
+  push:
+    paths:
+      - '.github/workflows/build-kernel.yml'
+
   workflow_dispatch:
 
 jobs:  
