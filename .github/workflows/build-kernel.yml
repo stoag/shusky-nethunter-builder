@@ -305,7 +305,18 @@ jobs:
           rm magisk.zip
           
           cp out/shusky/dist/Image.lz4 AnyKernel3/
-          
+          # Fetch official Linux firmware for MT7612U / MT7662
+          mkdir -p AnyKernel3/twk_firmware
+
+          curl -fL "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662.bin" \ 
+          -o AnyKernel3/twk_firmware/mt7662.bin
+
+          curl -fL "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662_rom_patch.bin" \ 
+          -o AnyKernel3/twk_firmware/mt7662_rom_patch.bin
+
+          # Verify firmware was actually downloaded
+          test -s AnyKernel3/twk_firmware/mt7662.bin
+          test -s AnyKernel3/twk_firmware/mt7662_rom_patch.bin 
           # Fetch Official Linux Firmware for MT7612U
           mkdir -p AnyKernel3/twk_firmware/mediatek
           curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u.bin
