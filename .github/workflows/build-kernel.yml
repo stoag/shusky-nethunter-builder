@@ -308,8 +308,8 @@ jobs:
           
           # Fetch Official Linux Firmware for MT7612U
           mkdir -p AnyKernel3/twk_firmware/mediatek
-          curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u.bin
-          curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u_rom_patch.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u_rom_patch.bin
+          curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662.bin
+          curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662_rom_patch.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662_rom_patch.binom_patch.bin
           
           # Copy the Realtek driver AND the MediaTek modular stack
           mkdir -p AnyKernel3/twk_drivers
