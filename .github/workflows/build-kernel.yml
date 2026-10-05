@@ -7,8 +7,8 @@ jobs:
   build-kernel:    
     runs-on: ubuntu-latest    
     env:      
-      CUSTOM_KERNEL_VERSION: "twk.v1.13"
-      CUSTOM_LOCALVERSION: "-twk.v1.13"
+      CUSTOM_KERNEL_VERSION: "twk.v1.14"
+      CUSTOM_LOCALVERSION: "-twk.v1.14"
     steps:    
     - name: Free Runner Disk Space      
       run: |        
@@ -51,38 +51,34 @@ jobs:
         cd workspace/aosp                
         find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +        
         sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig    
-        
+
     - name: Inject Morrownr Fork (stoag/8812au-20210820)      
       run: |        
         cd workspace/aosp                
         
-        # 1. Unlock the parent Realtek Kconfig and Makefile
         chmod u+w drivers/net/wireless/realtek/Kconfig
         chmod u+w drivers/net/wireless/realtek/Makefile                
         
-        # 2. Clone your customized fork
+        # 1. Delete conflicting native driver directories
+        rm -rf drivers/net/wireless/realtek/rtw88
+        rm -rf drivers/net/wireless/realtek/rtl8812au
+        
+        # 2. Prevent Bazel crashes by removing the deleted drivers from the parent build system
+        sed -i '/rtw88/d' drivers/net/wireless/realtek/Kconfig
+        sed -i '/rtw88/d' drivers/net/wireless/realtek/Makefile
+        sed -i '/rtl8812au/d' drivers/net/wireless/realtek/Kconfig
+        sed -i '/rtl8812au/d' drivers/net/wireless/realtek/Makefile
+        
+        # 3. Clone your customized fork
         git clone https://github.com/stoag/8812au-20210820.git drivers/net/wireless/realtek/rtl8812au
         rm -rf drivers/net/wireless/realtek/rtl8812au/.git
              
-        # 3. Integrate YOUR Kconfig natively without sed hacks
+        # 4. Integrate YOUR Kconfig and Makefile natively
         echo 'source "drivers/net/wireless/realtek/rtl8812au/Kconfig"' >> drivers/net/wireless/realtek/Kconfig
         echo 'obj-$(CONFIG_RTL8812AU) += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
         
-        # 4. Inject GKI C-Stubs into osdep_service.c
-        OSDEP_FILE=$(find drivers/net/wireless/realtek/rtl8812au -name "osdep_service.c" | head -n 1)        
-        {
-          echo '/* GKI PREBUILT BYPASS - STUB FILE I/O */'
-          echo '#include <linux/fs.h>'
-          echo '#include <linux/err.h>'
-          echo '#include <linux/errno.h>'
-          echo '#include <linux/namei.h>'
-          echo '#include <linux/path.h>'
-          echo 'struct file *filp_open_dummy(const char *filename, int flags, umode_t mode) { return ERR_PTR(-ENOENT); }'
-          echo 'ssize_t kernel_read_dummy(struct file *file, void *buf, size_t count, loff_t *pos) { return -EIO; }'
-          echo 'ssize_t kernel_write_dummy(struct file *file, const void *buf, size_t count, loff_t *pos) { return -EIO; }'
-          echo 'int kern_path_dummy(const char *name, unsigned int flags, struct path *path) { return -ENOENT; }'
-        } >> "$OSDEP_FILE"
-    
+        # NOTE: GKI C-Stubs have been completely removed from this step because they are natively present in your osdep_service.c
+
     - name: Apply KernelSU Next & Defconfigs      
       run: |        
         cd workspace/aosp                
@@ -290,6 +286,7 @@ jobs:
           echo 'MOD_DIR="/data/adb/modules/twk_nethunter_adapters"'
           echo 'rm -rf $MOD_DIR'
           
+          # Returning to the standard OverlayFS layout
           echo 'mkdir -p $MOD_DIR/system/vendor/lib/modules'
           echo 'mkdir -p $MOD_DIR/system/vendor/firmware'
           
@@ -299,7 +296,7 @@ jobs:
           echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
           echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
           echo 'echo "version=${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-          echo 'echo "versionCode=113" >> $MOD_DIR/module.prop'
+          echo 'echo "versionCode=114" >> $MOD_DIR/module.prop'
           echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
           echo 'echo "description=Injects MediaTek firmware & modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
           
