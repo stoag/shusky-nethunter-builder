@@ -7,8 +7,8 @@ jobs:
   build-kernel:    
     runs-on: ubuntu-latest    
     env:      
-      CUSTOM_KERNEL_VERSION: "twk.v1.16"
-      CUSTOM_LOCALVERSION: "-twk.v1.16"
+      CUSTOM_KERNEL_VERSION: "twk.v1.17"
+      CUSTOM_LOCALVERSION: "-twk.v1.17"
     steps:    
     - name: Free Runner Disk Space      
       run: |        
@@ -29,15 +29,16 @@ jobs:
         git config --global user.name "Builder"        
         git config --global user.email "builder@localhost"    
     
-    - name: Cache Bazel & Kleaf Build Output      
-      uses: actions/cache@v4      
-      with:        
-        path: |          
-          ~/.cache/bazel          
-          workspace/out/bazel        
-        key: ${{ runner.os }}-bazel-shusky-${{ hashFiles('workspace/private/devices/google/shusky/**') }}        
-        restore-keys: |          
-          ${{ runner.os }}-bazel-shusky-    
+    # TEMPORARILY DISABLED TO PREVENT FALSE NEGATIVES
+    # - name: Cache Bazel & Kleaf Build Output      
+    #   uses: actions/cache@v4      
+    #   with:        
+    #     path: |          
+    #       ~/.cache/bazel          
+    #       workspace/out/bazel        
+    #     key: ${{ runner.os }}-bazel-shusky-${{ hashFiles('workspace/private/devices/google/shusky/**') }}        
+    #     restore-keys: |          
+    #       ${{ runner.os }}-bazel-shusky-    
     
     - name: Initialize & Sync Google Kernel Source      
       run: |        
@@ -58,12 +59,23 @@ jobs:
         
         chmod u+w drivers/net/wireless/realtek/Makefile                
         
-        # 1. Clone your perfectly-primed fork directly into the Realtek tree
         git clone https://github.com/stoag/8812au-20210820.git drivers/net/wireless/realtek/rtl8812au
         rm -rf drivers/net/wireless/realtek/rtl8812au/.git
              
-        # 2. BRUTE FORCE the module compilation to bypass GKI Kconfig drops
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
+
+    - name: Verify Realtek Injection
+      run: |
+        cd workspace/aosp
+        
+        echo "=== 8812AU SOURCE ==="
+        ls -la drivers/net/wireless/realtek/rtl8812au/
+
+        echo "=== 8812AU MAKEFILE ==="
+        head -80 drivers/net/wireless/realtek/rtl8812au/Makefile
+
+        echo "=== REALTEK MAKEFILE ENTRY ==="
+        tail -20 drivers/net/wireless/realtek/Makefile
 
     - name: Apply KernelSU Next & Defconfigs      
       run: |        
@@ -112,7 +124,7 @@ jobs:
           echo 'CONFIG_MAC80211=y'
           echo 'CONFIG_BT_HCIBTUSB=m'
           
-          echo '# Realtek 8812AU Trigger (Forced via obj-m above, but kept here for completeness)'
+          echo '# Realtek 8812AU Trigger'
           echo 'CONFIG_RTL8812AU=m'
 
           echo '# MediaTek MT76 Modular Subsystem'
@@ -220,13 +232,23 @@ jobs:
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
         
-        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
+        ./buildozer 'add module_outs drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
         
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
         cd workspace        
         BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode" ./build_shusky.sh    
     
+    - name: Locate Realtek Module
+      if: always()
+      run: |
+        cd workspace
+        echo "=== SEARCHING FOR 8812AU MODULE ==="
+        find out -type f -name '8812au.ko' -o -name '*8812au*.ko' 2>/dev/null || true
+
+        echo "=== SEARCHING ENTIRE WORKSPACE ==="
+        find . -type f -name '8812au.ko' -o -name '*8812au*.ko' -o -name '*88XXau*.ko' 2>/dev/null || true
+
     - name: Package Kernel, Hybrid Drivers, and Partitions into Unified Release
       run: |        
         cd workspace                
@@ -245,7 +267,9 @@ jobs:
         cp out/shusky/dist/Image.lz4 AnyKernel3/                
         
         mkdir -p AnyKernel3/twk_drivers        
-        find out/shusky/dist -name "8812au.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
+        
+        # Pull any compiled variant of the module we find
+        find . -type f -name '8812au.ko' -o -name '*8812au*.ko' -exec cp {} AnyKernel3/twk_drivers/ \;
         find out/shusky/dist -name "mt76*.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
         
         # Fetch official Linux firmware for MT7612U / MT7662
@@ -257,7 +281,6 @@ jobs:
         curl -fL "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662_rom_patch.bin" \
           -o AnyKernel3/twk_firmware/mt7662_rom_patch.bin
 
-        # Verify firmware was actually downloaded
         test -s AnyKernel3/twk_firmware/mt7662.bin
         test -s AnyKernel3/twk_firmware/mt7662_rom_patch.bin
 
@@ -280,7 +303,7 @@ jobs:
           echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
           echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
           echo 'echo "version=${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-          echo 'echo "versionCode=116" >> $MOD_DIR/module.prop'
+          echo 'echo "versionCode=117" >> $MOD_DIR/module.prop'
           echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
           echo 'echo "description=Injects MediaTek firmware & modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
           
