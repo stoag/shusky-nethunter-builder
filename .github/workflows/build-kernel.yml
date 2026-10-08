@@ -7,8 +7,8 @@ jobs:
   build-kernel:    
     runs-on: ubuntu-latest    
     env:      
-      CUSTOM_KERNEL_VERSION: "twk.v1.21"
-      CUSTOM_LOCALVERSION: "-twk.v1.21"
+      CUSTOM_KERNEL_VERSION: "twk.v1.22"
+      CUSTOM_LOCALVERSION: "-twk.v1.22"
     steps:    
     - name: Free Runner Disk Space      
       run: |        
@@ -28,17 +28,6 @@ jobs:
       run: |        
         git config --global user.name "Builder"        
         git config --global user.email "builder@localhost"    
-    
-    # TEMPORARILY DISABLED TO PREVENT FALSE NEGATIVES
-    # - name: Cache Bazel & Kleaf Build Output      
-    #   uses: actions/cache@v4      
-    #   with:        
-    #     path: |          
-    #       ~/.cache/bazel          
-    #       workspace/out/bazel        
-    #     key: ${{ runner.os }}-bazel-shusky-${{ hashFiles('workspace/private/devices/google/shusky/**') }}        
-    #     restore-keys: |          
-    #       ${{ runner.os }}-bazel-shusky-    
     
     - name: Initialize & Sync Google Kernel Source      
       run: |        
@@ -220,127 +209,4 @@ jobs:
           echo 'yield'
         } > missing_symbols.txt
         
-        find . -type f \( -name "abi_gki_aarch64*" -o -name "*symbol_list*" \) | grep -vE "\.(bzl|stg|xml|json|html|sh|py)$" | while read -r list_file; do            
-            chmod u+w "$list_file" || true            
-            echo "" >> "$list_file"            
-            cat missing_symbols.txt >> "$list_file"        
-        done 
-
-    - name: Track Hybrid Modules in Bazel Target
-      run: |
-        cd workspace/aosp
-        
-        wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
-        chmod +x buildozer
-        
-        # NOTE: 8812au.ko removed from tracker to isolate Bazel strict checks. We will grab it with 'find' later.
-        ./buildozer 'add module_outs drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
-        
-    - name: Compile Pixel 8 Pro Kernel via Bazel      
-      run: |        
-        cd workspace        
-        BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode" ./build_shusky.sh    
-    
-    - name: Package Kernel, Hybrid Drivers, and Partitions into Unified Release
-      run: |        
-        cd workspace                
-        mkdir -p bundle
-
-        git clone https://github.com/stoag/AnyKernel3-Pixel8Pro.git AnyKernel3                
-        
-        wget -qO AnyKernel3/tools/busybox https://raw.githubusercontent.com/xerta555/Busybox-Binaries/master/busybox-arm64        
-        chmod +x AnyKernel3/tools/busybox        
-        wget -qO magisk.zip https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk        
-        unzip -j magisk.zip lib/arm64-v8a/libmagiskboot.so        
-        mv libmagiskboot.so AnyKernel3/tools/magiskboot        
-        chmod +x AnyKernel3/tools/magiskboot        
-        rm magisk.zip                
-        
-        cp out/shusky/dist/Image.lz4 AnyKernel3/                
-        
-        mkdir -p AnyKernel3/twk_drivers        
-        
-        # Pull compiled MT76 and our force-compiled 8812AU module
-        find . -type f -name '8812au.ko' -exec cp {} AnyKernel3/twk_drivers/ \;
-        find out/shusky/dist -name "mt76*.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
-        
-        # Fetch official Linux firmware for MT7612U / MT7662
-        mkdir -p AnyKernel3/twk_firmware
-
-        curl -fL "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662.bin" \
-          -o AnyKernel3/twk_firmware/mt7662.bin
-
-        curl -fL "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662_rom_patch.bin" \
-          -o AnyKernel3/twk_firmware/mt7662_rom_patch.bin
-
-        sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh                
-        
-        {
-          echo '# --- TWEAKER KERNEL HYBRID ADAPTER INJECTION ---'
-          echo 'ui_print " ";'
-          echo 'ui_print "- Injecting Realtek + MediaTek drivers and firmware...";'
-          echo 'mount /data;'
-          echo 'MOD_DIR="/data/adb/modules/twk_nethunter_adapters"'
-          echo 'rm -rf $MOD_DIR'
-          
-          echo 'mkdir -p $MOD_DIR/system/vendor/lib/modules'
-          echo 'mkdir -p $MOD_DIR/system/vendor/firmware'
-          
-          echo 'cp -f $home/twk_drivers/*.ko $MOD_DIR/system/vendor/lib/modules/'
-          echo 'cp -f $home/twk_firmware/*.bin $MOD_DIR/system/vendor/firmware/'
-          
-          echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
-          echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
-          echo 'echo "version=${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-          echo 'echo "versionCode=121" >> $MOD_DIR/module.prop'
-          echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
-          echo 'echo "description=Injects MediaTek & Realtek modular drivers for NetHunter." >> $MOD_DIR/module.prop'
-          
-          echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
-          
-          # Wait for Android to finish mounting the filesystem
-          echo 'until [ "$(getprop sys.boot_completed)" = "1" ]; do sleep 1; done' >> $MOD_DIR/service.sh
-          
-          # 1. Create RAM disk staging folders to bypass SELinux read blocks on /data
-          echo 'mkdir -p /dev/twk_modules' >> $MOD_DIR/service.sh
-          echo 'mkdir -p /dev/twk_firmware' >> $MOD_DIR/service.sh
-          echo 'cp $MOD_DIR/system/vendor/lib/modules/*.ko /dev/twk_modules/' >> $MOD_DIR/service.sh
-          echo 'cp $MOD_DIR/system/vendor/firmware/*.bin /dev/twk_firmware/' >> $MOD_DIR/service.sh
-          echo 'chmod 644 /dev/twk_modules/*.ko' >> $MOD_DIR/service.sh
-          echo 'chmod 644 /dev/twk_firmware/*.bin' >> $MOD_DIR/service.sh
-          
-          # 2. Trick SELinux by relabeling the files to system-trusted contexts
-          echo 'chcon u:object_r:vendor_file:s0 /dev/twk_modules/*.ko' >> $MOD_DIR/service.sh
-          echo 'chcon u:object_r:firmware_file:s0 /dev/twk_firmware/*.bin' >> $MOD_DIR/service.sh
-
-          # 3. Tell the kernel's firmware loader to look inside the SELinux-safe RAM disk
-          echo 'echo "/dev/twk_firmware" > /sys/module/firmware_class/parameters/path' >> $MOD_DIR/service.sh
-          
-          # 4. Load Drivers
-          echo 'insmod /dev/twk_modules/8812au.ko' >> $MOD_DIR/service.sh
-          echo 'insmod /dev/twk_modules/mt76.ko' >> $MOD_DIR/service.sh
-          echo 'insmod /dev/twk_modules/mt76-usb.ko' >> $MOD_DIR/service.sh
-          echo 'insmod /dev/twk_modules/mt76x02-lib.ko' >> $MOD_DIR/service.sh
-          echo 'insmod /dev/twk_modules/mt76x02-usb.ko' >> $MOD_DIR/service.sh
-          echo 'insmod /dev/twk_modules/mt76x2-common.ko' >> $MOD_DIR/service.sh
-          echo 'insmod /dev/twk_modules/mt76x2u.ko' >> $MOD_DIR/service.sh
-          
-          echo 'chmod +x $MOD_DIR/service.sh'
-          echo 'ui_print "- MediaTek + Realtek drivers and firmware armed successfully!";'
-          echo '# ----------------------------------------------------'
-        } >> AnyKernel3/anykernel.sh                
-        
-        cd AnyKernel3        
-        zip -r9 ../bundle/${{ env.CUSTOM_KERNEL_VERSION }}-anykernel3.zip * -x README.md        
-        cd ..    
-        
-        find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} bundle/${{ env.CUSTOM_KERNEL_VERSION }}-vendor_dlkm.img \;
-        find out/ -type f -name "vendor_kernel_boot.img" -exec cp -L {} bundle/${{ env.CUSTOM_KERNEL_VERSION }}-vendor_kernel_boot.img \;
-        find out/ -type f -name "system_dlkm.img" -exec cp -L {} bundle/${{ env.CUSTOM_KERNEL_VERSION }}-system_dlkm.img \;
-
-    - name: Upload Complete Release Package
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.CUSTOM_KERNEL_VERSION }}-release-package
-        path: workspace/bundle/*
-        if-no-files-found: error
+        find . -type f \( -name "abi_gki_aarch64*" -o -name "*symbol_list*" \) |
