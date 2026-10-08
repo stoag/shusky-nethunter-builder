@@ -7,8 +7,8 @@ jobs:
   build-kernel:    
     runs-on: ubuntu-latest    
     env:      
-      CUSTOM_KERNEL_VERSION: "twk.v1.17"
-      CUSTOM_LOCALVERSION: "-twk.v1.17"
+      CUSTOM_KERNEL_VERSION: "twk.v1.18"
+      CUSTOM_LOCALVERSION: "-twk.v1.18"
     steps:    
     - name: Free Runner Disk Space      
       run: |        
@@ -57,11 +57,14 @@ jobs:
       run: |        
         cd workspace/aosp                
         
+        chmod u+w drivers/net/wireless/Makefile
         chmod u+w drivers/net/wireless/realtek/Makefile                
         
         git clone https://github.com/stoag/8812au-20210820.git drivers/net/wireless/realtek/rtl8812au
         rm -rf drivers/net/wireless/realtek/rtl8812au/.git
              
+        # BRUTE FORCE the module compilation to bypass GKI Kconfig drops
+        echo 'obj-m += realtek/' >> drivers/net/wireless/Makefile
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
 
     - name: Verify Realtek Injection
@@ -124,7 +127,7 @@ jobs:
           echo 'CONFIG_MAC80211=y'
           echo 'CONFIG_BT_HCIBTUSB=m'
           
-          echo '# Realtek 8812AU Trigger'
+          echo '# Realtek 8812AU Trigger (Forced via obj-m above, but kept here for completeness)'
           echo 'CONFIG_RTL8812AU=m'
 
           echo '# MediaTek MT76 Modular Subsystem'
@@ -147,6 +150,8 @@ jobs:
           echo '__dev_kfree_skb_irq'
           echo '__hci_cmd_sync'
           echo '__hci_cmd_sync_ev'
+          echo '__ioread32_copy'
+          echo '__iowrite32_copy'
           echo '__printk_ratelimit'
           echo '__pskb_copy_fclone'
           echo '__regmap_init'
@@ -159,6 +164,7 @@ jobs:
           echo 'btbcm_setup_apple'
           echo 'btbcm_setup_patchram'
           echo 'dev_coredumpv'
+          echo 'dev_set_threaded'
           echo 'device_release_driver'
           echo 'flush_signals'
           echo 'gpiod_get_optional'
@@ -178,11 +184,17 @@ jobs:
           echo 'kill_pid'
           echo 'led_trigger_blink'
           echo 'led_trigger_blink_oneshot'
+          echo 'of_get_mac_address'
           echo 'out_of_line_wait_on_bit_timeout'
+          echo 'pci_disable_link_state'
+          echo 'pcie_capability_clear_and_set_word'
           echo 'proc_get_parent_data'
+          echo 'radix_tree_tagged'
           echo 'rfkill_pause_polling'
           echo 'rhashtable_init'
+          echo 'sched_set_fifo_low'
           echo 'skb_pull_data'
+          echo 'skb_to_sgvec'
           echo 'skb_unlink'
           echo 'stpcpy'
           echo 'usb_alloc_coherent'
@@ -207,6 +219,7 @@ jobs:
           echo 'usb_kill_anchored_urbs'
           echo 'usb_kill_urb'
           echo 'usb_match_id'
+          echo 'usb_poison_urb'
           echo 'usb_put_dev'
           echo 'usb_queue_reset_device'
           echo 'usb_register_driver'
@@ -215,6 +228,7 @@ jobs:
           echo 'usb_set_interface'
           echo 'usb_submit_urb'
           echo 'usb_unanchor_urb'
+          echo 'usb_unpoison_urb'
           echo 'wake_up_bit'
           echo 'yield'
         } > missing_symbols.txt
@@ -232,7 +246,7 @@ jobs:
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
         
-        ./buildozer 'add module_outs drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
+        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
         
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
@@ -303,7 +317,7 @@ jobs:
           echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
           echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
           echo 'echo "version=${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-          echo 'echo "versionCode=117" >> $MOD_DIR/module.prop'
+          echo 'echo "versionCode=118" >> $MOD_DIR/module.prop'
           echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
           echo 'echo "description=Injects MediaTek firmware & modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
           
