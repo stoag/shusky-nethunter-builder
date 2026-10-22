@@ -5,9 +5,6 @@ on:
     branches:
       - main  # (Change to 'master' if that is your default branch name)
   workflow_dispatch: # This keeps the manual "Run workflow" button as a backup
-  
-on:
-  workflow_dispatch:
 
 env:
   CUSTOM_KERNEL_VERSION: twk.v1.23
