@@ -241,7 +241,6 @@ jobs:
         
         # Wrap Bazel flags in EXTRA_ARGS so build_shusky.sh passes them down correctly
         EXTRA_ARGS="--kernel_package=@//aosp --notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode --//build/kernel/kleaf:gki_prebuilts_download_url=\"$PUBLIC_URL\"" ./build_shusky.sh --lto=thin
-        
     
     - name: Package Kernel, Firmware, Drivers, and Partitions into Flat Bundle
       run: |
