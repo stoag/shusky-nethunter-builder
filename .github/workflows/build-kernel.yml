@@ -1,69 +1,63 @@
-name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU Next + MT76/RTL8812AU
+name: Build P8P Kernel
 
-on: 
+on:
   workflow_dispatch:
 
-jobs:  
-  build-kernel:    
-    runs-on: ubuntu-latest    
-    env:      
-      CUSTOM_KERNEL_VERSION: "twk.v1.22"
-      CUSTOM_LOCALVERSION: "-twk.v1.22"
-    steps:    
-    - name: Free Runner Disk Space      
-      run: |        
-        sudo rm -rf /usr/share/dotnet        
-        sudo rm -rf /usr/local/lib/android        
-        sudo rm -rf /opt/ghc        
-        sudo rm -rf "/usr/local/share/boost"        
-        sudo apt-get clean        
-        df -h    
-    
-    - name: Install Build Dependencies      
-      run: |        
-        sudo apt-get update        
-        sudo apt-get install -y bc build-essential curl flex bison libssl-dev libelf-dev python3 repo git zip libncurses5-dev    
-    
-    - name: Configure Git Credentials      
-      run: |        
-        git config --global user.name "Builder"        
-        git config --global user.email "builder@localhost"    
-    
-    - name: Initialize & Sync Google Kernel Source      
-      run: |        
-        mkdir -p workspace        
-        cd workspace                
-        repo init -u https://android.googlesource.com/kernel/manifest -b android-gs-shusky-6.1-android16 --depth=1                
-        repo sync -c -j$(nproc) --no-tags --no-clone-bundle        
-    
-    - name: Apply Kali NetHunter Subsystem Overrides      
-      run: |        
-        cd workspace/aosp                
-        find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +        
-        sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig    
+env:
+  CUSTOM_KERNEL_VERSION: twk.v1.22
+  CUSTOM_LOCALVERSION: -twk.v1.22
 
-    - name: Inject Morrownr Fork (stoag/8812au-20210820)      
-      run: |        
-        cd workspace/aosp                
-        
+jobs:
+  build-kernel:
+    runs-on: ubuntu-24.04
+    
+    - name: Free disk space
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf "/usr/local/share/boost"
+        sudo apt-get clean
+        df -h
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y bc build-essential curl flex bison libssl-dev libelf-dev python3 repo git zip libncurses5-dev
+
+    - name: Setup Git
+      run: |
+        git config --global user.name "Builder"
+        git config --global user.email "builder@localhost"
+
+    - name: Sync AOSP Source
+      run: |
+        mkdir -p workspace
+        cd workspace
+        repo init -u https://android.googlesource.com/kernel/manifest -b android-gs-shusky-6.1-android16 --depth=1
+        repo sync -c -j$(nproc) --no-tags --no-clone-bundle
+
+    - name: Patch Wireless Configs
+      run: |
+        cd workspace/aosp
+        find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +
+        sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig
+
+    - name: Clone Realtek Driver & Append to Makefile
+      run: |
+        cd workspace/aosp
         chmod u+w drivers/net/wireless/Makefile
-        chmod u+w drivers/net/wireless/realtek/Makefile                
-        
+        chmod u+w drivers/net/wireless/realtek/Makefile
         git clone https://github.com/stoag/8812au-20210820.git drivers/net/wireless/realtek/rtl8812au
         rm -rf drivers/net/wireless/realtek/rtl8812au/.git
-             
-        # BRUTE FORCE the module compilation to bypass GKI Kconfig drops
         echo 'obj-m += realtek/' >> drivers/net/wireless/Makefile
-        echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
+        echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
 
     - name: Apply KernelSU Next Patches & Configs
       run: |
         cd workspace/aosp
-        
-        # 1. Inject KernelSU Next inline source code (Forcing the absolute latest 'next' branch)
         curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s next
         
-        # 2. Append configs cleanly
         {
           echo '# Identification'
           echo 'CONFIG_LOCALVERSION="-twk.v1.22"'
@@ -103,13 +97,25 @@ jobs:
           echo '# Core Wireless Subsystem'
           echo 'CONFIG_CFG80211=y'
           echo 'CONFIG_MAC80211=y'
-          echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
+          echo 'CONFIG_BT_HCIBTUSB=m'
+          
+          echo '# Realtek 8812AU Trigger'
+          echo 'CONFIG_RTL8812AU=m'
+          
+          echo '# MediaTek MT76 Modular Subsystem'
+          echo 'CONFIG_WLAN_VENDOR_MEDIATEK=y'
+          echo 'CONFIG_MT76_CORE=m'
+          echo 'CONFIG_MT76_LEDS=n'
+          echo 'CONFIG_MT76_USB=m'
+          echo 'CONFIG_MT76x02_LIB=m'
+          echo 'CONFIG_MT76x02_USB=m'
+          echo 'CONFIG_MT76x2_COMMON=m'
+          echo 'CONFIG_MT76x2U=m'
         } >> arch/arm64/configs/gki_defconfig
 
-    - name: Authorize NetHunter Symbols in GKI Whitelist
+    - name: Update ABI Symbol List
       run: |
         cd workspace
-        
         {
           echo '_bcd2bin'
           echo '__dev_kfree_skb_irq'
@@ -198,4 +204,16 @@ jobs:
           echo 'yield'
         } > missing_symbols.txt
         
-        find . -type f \( -name "abi_gki_aarch64*" -o -name "*symbol_list*" \) |
+        # The trailing pipe was removed here and replaced with -exec to correctly append the symbols
+        find . -type f \( -name "abi_gki_aarch64*" -o -name "*symbol_list*" \) -exec sh -c 'cat missing_symbols.txt >> "{}"' \;
+
+    - name: Build Kernel
+      run: |
+        cd workspace
+        LTO=thin BUILD_CONFIG=aosp/build.config.shusky build/build.sh
+
+    - name: Upload Kernel Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: kernel-shusky-${{ env.CUSTOM_KERNEL_VERSION }}
+        path: workspace/out/mixed/dist/Image*
