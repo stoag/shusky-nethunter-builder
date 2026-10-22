@@ -244,6 +244,7 @@ jobs:
         cd workspace
         ./build_shusky.sh \
           --kernel_package=@//aosp \
+          --//build/kernel/kleaf:use_prebuilt_gki=false \
           --no//private/devices/google/common:download_prebuilt_gki_fips140
 
     - name: Package Kernel, Firmware, Drivers, and Partitions into Flat Bundle
@@ -282,7 +283,7 @@ jobs:
           echo 'MOD_DIR="/data/adb/modules/twk_nethunter_adapters"'
           echo 'rm -rf $MOD_DIR'
           echo 'mkdir -p $MOD_DIR/system/vendor/firmware'
-          echo 'cp -rf $home/twk_firmware/*$MOD_DIR/system/vendor/firmware/'
+          echo 'cp -rf $home/twk_firmware/* $MOD_DIR/system/vendor/firmware/'
           echo 'mkdir -p $MOD_DIR/system/vendor/lib/modules'
           echo 'cp -f $home/twk_drivers/*.ko $MOD_DIR/system/vendor/lib/modules/'
           echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
@@ -295,4 +296,40 @@ jobs:
 
           echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76.ko" >> $MOD_DIR/service.sh'
           echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76-usb.ko" >> $MOD_DIR/service.sh'
-          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x02-lib.ko" >> $MOD_DIR/service.sh
+          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x02-lib.ko" >> $MOD_DIR/service.sh'
+          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x02-usb.ko" >> $MOD_DIR/service.sh'
+          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x2-common.ko" >> $MOD_DIR/service.sh'
+          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x2u.ko" >> $MOD_DIR/service.sh'
+
+          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/8812au.ko rtw_drv_log_level=6 rtw_power_mgnt=0 rtw_switch_usb_mode=0" >> $MOD_DIR/service.sh'
+
+          echo 'chmod +x $MOD_DIR/service.sh'
+          echo 'ui_print "- Arsenal adapters integrated successfully!";'
+        } >> AnyKernel3/anykernel.sh
+
+        cd AnyKernel3
+        zip -r9 ../bundle/${{ env.CUSTOM_KERNEL_VERSION }}-anykernel3.zip * -x README.md
+        cd ..
+
+        find out/ -type f \( -name "init_boot.img" -o -name "boot.img" \) -exec cp -L {} bundle/${{ env.CUSTOM_KERNEL_VERSION }}-init_boot.img \;
+        find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} bundle/${{ env.CUSTOM_KERNEL_VERSION }}-vendor_dlkm.img \;
+        find out/ -type f -name "vendor_kernel_boot.img" -exec cp -L {} bundle/${{ env.CUSTOM_KERNEL_VERSION }}-vendor_kernel_boot.img \;
+        find out/ -type f -name "system_dlkm.img" -exec cp -L {} bundle/${{ env.CUSTOM_KERNEL_VERSION }}-system_dlkm.img \;
+
+        echo "VERIFYING BUNDLE CONTENTS:"
+        ls -lh bundle/
+
+    - name: Upload Flat Bundle Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.CUSTOM_KERNEL_VERSION }}-release-package
+        path: workspace/bundle/*
+        if-no-files-found: error
+
+    - name: Ping Phone - Success
+      if: success()
+      run: curl -d "✅ Pixel 8 Pro Kernel ${{ env.CUSTOM_KERNEL_VERSION }} Build COMPLETE! Grab the clean package files!" https://ntfy.sh/twk_pixel8_build_alerts
+
+    - name: Ping Phone - Failure
+      if: failure()
+      run: curl -d "❌ Pixel 8 Pro Kernel Build FAILED! Check the logs." https://ntfy.sh/twk_pixel8_build_alerts
