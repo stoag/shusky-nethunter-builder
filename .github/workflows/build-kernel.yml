@@ -208,8 +208,9 @@ jobs:
           echo 'yield'
         } > missing_symbols.txt
         
-        find . -type f \( -name "abi_gki_aarch64*" -o -name "*symbol_list*" \) -exec sh -c 'cat missing_symbols.txt >> "{}"' \;
-
+        # Fixed find command: safely ignores Bazel/Python/Shell scripts
+        find . -type f \( -name "abi_gki_aarch64*" -o -name "*symbol_list*" \) ! -name "*.bzl" ! -name "*.py" ! -name "*.sh" -exec sh -c 'cat missing_symbols.txt >> "{}"' \;
+        
     - name: Compile Pixel 8 Pro Kernel via Bazel
       run: |
         cd workspace
