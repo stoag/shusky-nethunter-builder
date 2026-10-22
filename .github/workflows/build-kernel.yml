@@ -236,9 +236,8 @@ jobs:
       run: |
         cd workspace
         
-        # --kernel_package=@//aosp forces the open-source build graph, entirely bypassing 
-        # the internal Google employee-only FIPS crypto prebuilts.
-        ./build_shusky.sh --lto=thin --kernel_package=@//aosp --notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode --kleaf_localversion=-${{ env.CUSTOM_KERNEL_VERSION }}
+        # Removed the broken --kleaf_localversion flag since it's already injected into defconfig
+        ./build_shusky.sh --lto=thin --kernel_package=@//aosp --notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode
         
     
     - name: Package Kernel, Firmware, Drivers, and Partitions into Flat Bundle
