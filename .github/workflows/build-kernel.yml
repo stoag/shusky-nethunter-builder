@@ -10,8 +10,8 @@ on:
   workflow_dispatch:
 
 env:
-  CUSTOM_KERNEL_VERSION: twk.v1.22
-  CUSTOM_LOCALVERSION: -twk.v1.22
+  CUSTOM_KERNEL_VERSION: twk.v1.23
+  CUSTOM_LOCALVERSION: -twk.v1.23
 
 jobs:
   build-kernel:
