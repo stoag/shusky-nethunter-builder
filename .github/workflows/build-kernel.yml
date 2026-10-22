@@ -230,15 +230,16 @@ jobs:
         } > missing_symbols.txt
         
         find aosp -type f \( -name "abi_gki_aarch64*" -o -name "*symbol_list*" \) ! -name "*.bzl" ! -name "*.py" ! -name "*.sh" -exec sh -c 'cat missing_symbols.txt >> "$1"' _ {} \;
-    
+
     - name: Compile Pixel 8 Pro Kernel via Bazel
       run: |
         cd workspace
         
-        # By passing --kernel_package directly to the script (NOT hidden inside EXTRA_ARGS),
-        # we force the open-source target and completely bypass the Google-internal FIPS downloads.
-        # We have also dropped the deprecated KMI flags that previously crashed the Bazel wrapper.
-        ./build_shusky.sh --lto=thin --kernel_package=@//aosp
+        # Define the public AOSP download URL for Kleaf
+        PUBLIC_URL="https://ci.android.com/builds/submitted/{build_number}/{target}/latest/raw/{filename}"
+        
+        # Pass the URL flag directly as an argument so the script forwards it to Bazel, bypassing the internal 501 error
+        ./build_shusky.sh --lto=thin --//build/kernel/kleaf:gki_prebuilts_download_url="$PUBLIC_URL"
     
     - name: Package Kernel, Firmware, Drivers, and Partitions into Flat Bundle
       run: |
