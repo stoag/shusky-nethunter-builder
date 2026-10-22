@@ -231,15 +231,35 @@ jobs:
         
         find aosp -type f \( -name "abi_gki_aarch64*" -o -name "*symbol_list*" \) ! -name "*.bzl" ! -name "*.py" ! -name "*.sh" -exec sh -c 'cat missing_symbols.txt >> "$1"' _ {} \;
 
+    - name: Dump Build Script Help Menus
+      run: |
+        cd workspace
+        echo "======================================"
+        echo "       bazel.py --help Output         "
+        echo "======================================"
+        build/kernel/kleaf/bazel.py --help || true
+        
+        echo "======================================"
+        echo "     build_shusky.sh --help Output    "
+        echo "======================================"
+        ./build_shusky.sh --help || true
+
+    - name: Exfiltrate Build Scripts for Review
+      uses: actions/upload-artifact@v4
+      with:
+        name: shusky-build-scripts
+        path: |
+          workspace/build_shusky.sh
+          workspace/build/kernel/kleaf/bazel.py
+          workspace/build/kernel/kleaf/*.bzl
+          workspace/build/kernel/kleaf/impl/**/*.bzl
+    
     - name: Compile Pixel 8 Pro Kernel via Bazel
       run: |
         cd workspace
         
-        # Define the public AOSP download URL for Kleaf
-        PUBLIC_URL="https://ci.android.com/builds/submitted/{build_number}/{target}/latest/raw/{filename}"
-        
-        # Pass the URL flag directly as an argument so the script forwards it to Bazel, bypassing the internal 501 error
-        ./build_shusky.sh --lto=thin --//build/kernel/kleaf:gki_prebuilts_download_url="$PUBLIC_URL"
+        # Test passing the exact build number from the 501 error using the native flag 
+        ./build_shusky.sh --lto=thin --kernel_package=@//aosp --use_prebuilt_gki 11690398
     
     - name: Package Kernel, Firmware, Drivers, and Partitions into Flat Bundle
       run: |
@@ -252,78 +272,4 @@ jobs:
         chmod +x AnyKernel3/tools/busybox
         wget -qO magisk.zip https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk
         unzip -j magisk.zip lib/arm64-v8a/libmagiskboot.so
-        mv libmagiskboot.so AnyKernel3/tools/magiskboot
-        chmod +x AnyKernel3/tools/magiskboot
-        rm magisk.zip
-        
-        cp out/shusky/dist/Image.lz4 AnyKernel3/
-        
-        mkdir -p AnyKernel3/twk_firmware/mediatek
-        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u.bin
-        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u_rom_patch.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u_rom_patch.bin
-        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/rt2870.bin" -o AnyKernel3/twk_firmware/rt2870.bin
-        
-        mkdir -p AnyKernel3/twk_drivers
-        find out/shusky/dist -name "8812au.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
-        find out/shusky/dist -name "mt76*.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
-        
-        sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh
-        
-        {
-          echo '# --- TWEAKER KERNEL HYBRID INJECTION ---'
-          echo 'ui_print " ";'
-          echo 'ui_print "- Injecting Firmware & Modular Adapters...";'
-          echo 'mount /data;'
-          echo 'MOD_DIR="/data/adb/modules/twk_nethunter_adapters"'
-          echo 'rm -rf $MOD_DIR'
-          echo 'mkdir -p $MOD_DIR/system/vendor/firmware'
-          echo 'cp -rf $home/twk_firmware/* $MOD_DIR/system/vendor/firmware/'
-          echo 'mkdir -p $MOD_DIR/system/vendor/lib/modules'
-          echo 'cp -f $home/twk_drivers/*.ko $MOD_DIR/system/vendor/lib/modules/'
-          echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
-          echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
-          echo 'echo "version=${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-          echo 'echo "versionCode=120" >> $MOD_DIR/module.prop'
-          echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
-          echo 'echo "description=Injects firmware & modular drivers for Realtek & MTK." >> $MOD_DIR/module.prop'
-          echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
-          
-          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76.ko" >> $MOD_DIR/service.sh'
-          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76-usb.ko" >> $MOD_DIR/service.sh'
-          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x02-lib.ko" >> $MOD_DIR/service.sh'
-          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x02-usb.ko" >> $MOD_DIR/service.sh'
-          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x2-common.ko" >> $MOD_DIR/service.sh'
-          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/mt76x2u.ko" >> $MOD_DIR/service.sh'
-          
-          echo 'echo "insmod $MOD_DIR/system/vendor/lib/modules/8812au.ko rtw_drv_log_level=6 rtw_power_mgnt=0 rtw_switch_usb_mode=0" >> $MOD_DIR/service.sh'
-          
-          echo 'chmod +x $MOD_DIR/service.sh'
-          echo 'ui_print "- Arsenal adapters integrated successfully!";'
-        } >> AnyKernel3/anykernel.sh
-        
-        cd AnyKernel3
-        zip -r9 ../bundle/${{ env.CUSTOM_KERNEL_VERSION }}-anykernel3.zip * -x README.md
-        cd ..
-
-        find out/ -type f \( -name "init_boot.img" -o -name "boot.img" \) -exec cp -L {} bundle/${{ env.CUSTOM_KERNEL_VERSION }}-init_boot.img \;
-        find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} bundle/${{ env.CUSTOM_KERNEL_VERSION }}-vendor_dlkm.img \;
-        find out/ -type f -name "vendor_kernel_boot.img" -exec cp -L {} bundle/${{ env.CUSTOM_KERNEL_VERSION }}-vendor_kernel_boot.img \;
-        find out/ -type f -name "system_dlkm.img" -exec cp -L {} bundle/${{ env.CUSTOM_KERNEL_VERSION }}-system_dlkm.img \;
-
-        echo "VERIFYING BUNDLE CONTENTS:"
-        ls -lh bundle/
-
-    - name: Upload Flat Bundle Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.CUSTOM_KERNEL_VERSION }}-release-package
-        path: workspace/bundle/*
-        if-no-files-found: error
-
-    - name: Ping Phone - Success
-      if: success()
-      run: curl -d "✅ Pixel 8 Pro Kernel ${{ env.CUSTOM_KERNEL_VERSION }} Build COMPLETE! Grab the clean package files!" https://ntfy.sh/twk_pixel8_build_alerts
-
-    - name: Ping Phone - Failure
-      if: failure()
-      run: curl -d "❌ Pixel 8 Pro Kernel Build FAILED! Check the logs." https://ntfy.sh/twk_pixel8_build_alerts
+        mv libmag
