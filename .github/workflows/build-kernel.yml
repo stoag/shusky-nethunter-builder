@@ -56,16 +56,18 @@ jobs:
         echo 'obj-m += realtek/' >> drivers/net/wireless/Makefile
         echo 'obj-m += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
 
-    - name: Apply KernelSU Next & Defconfigs      
-      run: |        
-        cd workspace/aosp                
+    - name: Apply KernelSU Next Patches & Configs
+      run: |
+        cd workspace/aosp
         
-        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -                
+        # 1. Inject KernelSU Next inline source code (Forcing the absolute latest 'next' branch)
+        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s next
         
+        # 2. Append configs cleanly
         {
           echo '# Identification'
-          echo "CONFIG_LOCALVERSION=\"${{ env.CUSTOM_LOCALVERSION }}\""
-
+          echo 'CONFIG_LOCALVERSION="-twk.v1.22"'
+          
           echo '# KernelSU Next'
           echo 'CONFIG_KSU=y'
           echo 'CONFIG_TRIM_NONLISTED_KMI=n'
@@ -101,21 +103,8 @@ jobs:
           echo '# Core Wireless Subsystem'
           echo 'CONFIG_CFG80211=y'
           echo 'CONFIG_MAC80211=y'
-          echo 'CONFIG_BT_HCIBTUSB=m'
-          
-          echo '# Realtek 8812AU Trigger (Forced via obj-m above, but kept here for completeness)'
-          echo 'CONFIG_RTL8812AU=m'
-
-          echo '# MediaTek MT76 Modular Subsystem'
-          echo 'CONFIG_WLAN_VENDOR_MEDIATEK=y'
-          echo 'CONFIG_MT76_CORE=m'
-          echo 'CONFIG_MT76_LEDS=n'
-          echo 'CONFIG_MT76_USB=m'
-          echo 'CONFIG_MT76x02_LIB=m'
-          echo 'CONFIG_MT76x02_USB=m'
-          echo 'CONFIG_MT76x2_COMMON=m'
-          echo 'CONFIG_MT76x2U=m'
-        } >> arch/arm64/configs/gki_defconfig    
+          echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
+        } >> arch/arm64/configs/gki_defconfig
 
     - name: Authorize NetHunter Symbols in GKI Whitelist
       run: |
