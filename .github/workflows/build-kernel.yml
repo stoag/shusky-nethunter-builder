@@ -1,6 +1,12 @@
 name: Build P8P Kernel
 
 on:
+  push:
+    branches:
+      - main  # (Change to 'master' if that is your default branch name)
+  workflow_dispatch: # This keeps the manual "Run workflow" button as a backup
+  
+on:
   workflow_dispatch:
 
 env:
@@ -11,6 +17,7 @@ jobs:
   build-kernel:
     runs-on: ubuntu-24.04
     
+    steps:
     - name: Free disk space
       run: |
         sudo rm -rf /usr/share/dotnet
