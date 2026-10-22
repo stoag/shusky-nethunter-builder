@@ -237,10 +237,10 @@ jobs:
         # corrupting Starlark and causing Bazel to fail before compilation.
         find aosp -type f -name "abi_gki_aarch64*" -exec sh -c 'cat missing_symbols.txt >> "$1"' _ {} \;
     
-    - name: Compile Pixel 8 Pro Kernel via Bazel
+    - name: Compile Pixel 8 Pro Kernel
       run: |
         cd workspace
-        tools/bazel run //aosp:shusky_dist -- --dist_dir=out/shusky/dist
+        ./build_shusky.sh --lto=thin
     
     - name: Package Kernel, Firmware, Drivers, and Partitions into Flat Bundle
       run: |
