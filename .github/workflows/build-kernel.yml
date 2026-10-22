@@ -213,7 +213,7 @@ jobs:
     - name: Compile Pixel 8 Pro Kernel via Bazel
       run: |
         cd workspace
-        tools/bazel run //private/gs-google:shusky_dist -- --dist_dir=out/shusky/dist
+        tools/bazel run //aosp:shusky_dist -- --dist_dir=out/shusky/dist
 
     - name: Package Kernel, Firmware, Drivers, and Partitions into Flat Bundle
       run: |
