@@ -138,6 +138,10 @@ jobs:
           echo 'CONFIG_MT76x2U=m'
         } >> arch/arm64/configs/gki_defconfig
 
+        # Disable POST_DEFCONFIG_CMDS="check_defconfig" in aosp/build.config.gki
+        chmod u+w build.config.gki
+        echo "DEFCONFIG=gki_defconfig" > build.config.gki
+
     - name: Update ABI Symbol List
       run: |
         cd workspace
@@ -237,12 +241,17 @@ jobs:
         cd workspace/aosp
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
-        ./buildozer 'add module_outs drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
+        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
 
     - name: Compile Pixel 8 Pro Kernel via Bazel
       run: |
         cd workspace
-        ./build_shusky.sh --kernel_package=@//aosp --lto=thin
+        ./build_shusky.sh \
+          --kernel_package=@//aosp \
+          --//build/kernel/kleaf:use_prebuilt_gki=false \
+          --no//private/devices/google/common:download_prebuilt_gki_fips140 \
+          --notrim \
+          --nokmi_symbol_list_strict_mode
 
     - name: Package Kernel, Firmware, Drivers, and Partitions into Flat Bundle
       run: |
