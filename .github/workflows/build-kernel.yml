@@ -236,7 +236,7 @@ jobs:
 
         find aosp -type f -name "abi_gki_aarch64*" -exec sh -c 'chmod u+w "$1" || true; echo "" >> "$1"; cat missing_symbols.txt >> "$1"' _ {} \;
 
-    - name: Track Loadable Modules in Bazel
+    - name: Track Loadable Modules in Bazel (Device Target Only)
       run: |
         cd workspace/aosp
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
@@ -251,7 +251,8 @@ jobs:
           --//build/kernel/kleaf:use_prebuilt_gki=false \
           --no//private/devices/google/common:download_prebuilt_gki_fips140 \
           --notrim \
-          --nokmi_symbol_list_strict_mode
+          --nokmi_symbol_list_strict_mode \
+          --allow_undeclared_modules
 
     - name: Package Kernel, Firmware, Drivers, and Partitions into Flat Bundle
       run: |
@@ -276,7 +277,7 @@ jobs:
         curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/rt2870.bin" -o AnyKernel3/twk_firmware/rt2870.bin
 
         mkdir -p AnyKernel3/twk_drivers
-        find out/ -name "8812au.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
+        find out/shusky/dist -name "8812au.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
         find out/shusky/dist -name "mt76*.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
 
         sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh
