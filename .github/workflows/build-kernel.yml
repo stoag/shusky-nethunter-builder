@@ -50,6 +50,12 @@ jobs:
         
         repo init -u https://android.googlesource.com/kernel/manifest -b android-gs-shusky-6.1-android16 --depth=1                
         repo sync -c -j$(nproc) --no-tags --no-clone-bundle        
+
+    - name: Patch Wireless Configs (Prevent MAC80211 LED Linker Panics)
+      run: |
+        cd workspace/aosp
+        find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +
+        sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig
     
     - name: Inject Morrownr Linux 6.1-Ready Driver (8812AU)
       run: |        
@@ -97,6 +103,7 @@ jobs:
           echo '# MODULE: MediaTek MT7612U (Panda PAU0D)'
           echo 'CONFIG_WLAN_VENDOR_MEDIATEK=y'
           echo 'CONFIG_MT76_CORE=m'
+          echo 'CONFIG_MT76_LEDS=n'
           echo 'CONFIG_MT76_USB=m'
           echo 'CONFIG_MT76x02_LIB=m'
           echo 'CONFIG_MT76x02_USB=m'
@@ -267,9 +274,7 @@ jobs:
           --//build/kernel/kleaf:use_prebuilt_gki=false \
           --no//private/devices/google/common:download_prebuilt_gki_fips140 \
           --notrim \
-          --nokmi_symbol_list_strict_mode \
-          --//build/kernel/kleaf:kbuild_build_user=Tweaker \
-          --//build/kernel/kleaf:kbuild_build_host=twk-v${{ env.CUSTOM_KERNEL_VERSION }}
+          --nokmi_symbol_list_strict_mode
 
     - name: Package Kernel, Firmware, Drivers, and Partitions into Flat Bundle
       run: |
@@ -311,7 +316,7 @@ jobs:
           echo 'rm -rf $MOD_DIR'
           
           echo 'mkdir -p $MOD_DIR/system/vendor/firmware/mediatek'
-          echo 'cp -rf $home/twk_firmware/mediatek/* $MOD_DIR/system/vendor/firmware/mediatek/'
+          echo 'cp -rf $home/twk_firmware/mediatek/*$MOD_DIR/system/vendor/firmware/mediatek/'
           
           echo 'mkdir -p $MOD_DIR/system/vendor/lib/modules'
           echo 'cp -f $home/twk_drivers/*.ko $MOD_DIR/system/vendor/lib/modules/'
@@ -369,23 +374,3 @@ jobs:
 
         find out/ -type f -name "init_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-init_boot.img \;
         find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_dlkm.img \;
-        find out/ -type f -name "vendor_kernel_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_kernel_boot.img \;
-        find out/ -type f -name "system_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-system_dlkm.img \;
-        
-        echo "VERIFYING BUNDLE CONTENTS:"
-        ls -lh bundle/
-
-    - name: Upload Flat Bundle Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: twk-v${{ env.CUSTOM_KERNEL_VERSION }}-release-package
-        path: workspace/bundle/*
-        if-no-files-found: error
-
-    - name: Ping Phone - Success
-      if: success()
-      run: curl -d "✅ Pixel 8 Pro Kernel twk.v${{ env.CUSTOM_KERNEL_VERSION }} Build COMPLETE! Grab the clean package files!" https://ntfy.sh/twk_pixel8_build_alerts
-
-    - name: Ping Phone - Failure
-      if: failure()
-      run: curl -d "❌ Pixel 8 Pro Kernel Build FAILED! Check the logs." https://ntfy.sh/twk_pixel8_build_alerts
