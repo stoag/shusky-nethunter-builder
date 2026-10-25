@@ -9,7 +9,7 @@ on:
 
 jobs:  
   build-kernel:    
-    runs-on: ubuntu-latest    
+    runs-on: ubuntu-24.04    
     env:      
       # Release Version
       CUSTOM_KERNEL_VERSION: "1.24"          
@@ -94,14 +94,14 @@ jobs:
           echo 'CONFIG_CFG80211_CERTIFICATION_ONUS=y'
           echo 'CONFIG_WIRELESS=y'
           
-          echo '# NATIVE: MediaTek MT7612U (Panda PAU0D)'
+          echo '# MODULE: MediaTek MT7612U (Panda PAU0D)'
           echo 'CONFIG_WLAN_VENDOR_MEDIATEK=y'
-          echo 'CONFIG_MT76_CORE=y'
-          echo 'CONFIG_MT76_USB=y'
-          echo 'CONFIG_MT76x02_LIB=y'
-          echo 'CONFIG_MT76x02_USB=y'
-          echo 'CONFIG_MT76x2_COMMON=y'
-          echo 'CONFIG_MT76x2U=y'
+          echo 'CONFIG_MT76_CORE=m'
+          echo 'CONFIG_MT76_USB=m'
+          echo 'CONFIG_MT76x02_LIB=m'
+          echo 'CONFIG_MT76x02_USB=m'
+          echo 'CONFIG_MT76x2_COMMON=m'
+          echo 'CONFIG_MT76x2U=m'
           
           echo '# MODULE: Realtek RTL8812AU'
           echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
@@ -145,7 +145,11 @@ jobs:
           echo 'CONFIG_WIREGUARD=y'
           
           echo 'CONFIG_BT_HCIBTUSB=m'
-        } >> arch/arm64/configs/gki_defconfig    
+        } >> arch/arm64/configs/gki_defconfig
+
+        # 3. Disable POST_DEFCONFIG_CMDS="check_defconfig" in aosp/build.config.gki
+        chmod u+w build.config.gki
+        echo "DEFCONFIG=gki_defconfig" > build.config.gki
 
     - name: Authorize NetHunter Symbols in GKI
       run: |
@@ -254,21 +258,6 @@ jobs:
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
         ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko' //private/devices/google/shusky:kernel
-
-    - name: Disable Broken Prebuilt GKI & FIPS140 Downloads (Fixes HTTP 501)
-      run: |
-        cd workspace
-        # 1. Strip @gki_prebuilt_fips140//fips140.ko targets from device BUILD.bazel files
-        find private/ -name "BUILD.bazel" -exec sed -i 's/"@gki_prebuilt_fips140\/\/fips140.ko"//g' {} +
-        
-        # 2. Remove forced prebuilt GKI / fips140 flags from device bazelrc files
-        find private/ -name "*.bazelrc" -exec sed -i '/use_prebuilt_gki/d; /use_signed_prebuilts/d; /download_fips140/d' {} +
-
-    - name: Upload Build Script as Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: pixel-build-script
-        path: workspace/build_shusky.sh
           
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
@@ -276,7 +265,8 @@ jobs:
         ./build_shusky.sh \
           --kernel_package=@//aosp \
           --//build/kernel/kleaf:use_prebuilt_gki=false \
-          --notrim_nonlisted_kmi \
+          --no//private/devices/google/common:download_prebuilt_gki_fips140 \
+          --notrim \
           --nokmi_symbol_list_strict_mode \
           --//build/kernel/kleaf:kbuild_build_user=Tweaker \
           --//build/kernel/kleaf:kbuild_build_host=twk-v${{ env.CUSTOM_KERNEL_VERSION }}
