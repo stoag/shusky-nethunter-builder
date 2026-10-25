@@ -1,6 +1,10 @@
 name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU-Next
 
-on: 
+on:
+  push:
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 jobs:  
@@ -8,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest    
     env:      
       # Release Version
-      CUSTOM_KERNEL_VERSION: "twk.v1.24"          
+      CUSTOM_KERNEL_VERSION: "1.24"          
     steps:    
     - name: Free Runner Disk Space      
       run: |        
@@ -250,7 +254,16 @@ jobs:
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
         ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko' //private/devices/google/shusky:kernel
+
+    - name: Disable Broken Prebuilt GKI & FIPS140 Downloads (Fixes HTTP 501)
+      run: |
+        cd workspace
+        # 1. Strip @gki_prebuilt_fips140//fips140.ko targets from device BUILD.bazel files
+        find private/ -name "BUILD.bazel" -exec sed -i 's/"@gki_prebuilt_fips140\/\/fips140.ko"//g' {} +
         
+        # 2. Remove forced prebuilt GKI / fips140 flags from device bazelrc files
+        find private/ -name "*.bazelrc" -exec sed -i '/use_prebuilt_gki/d; /use_signed_prebuilts/d; /download_fips140/d' {} +
+
     - name: Upload Build Script as Artifact
       uses: actions/upload-artifact@v4
       with:
@@ -260,7 +273,13 @@ jobs:
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
         cd workspace
-        BUILD_AOSP_KERNEL=1 EXTRA_ARGS="--notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode --//build/kernel/kleaf:kbuild_build_user=Tweaker --//build/kernel/kleaf:kbuild_build_host=twk-v${{ env.CUSTOM_KERNEL_VERSION }}" ./build_shusky.sh
+        ./build_shusky.sh \
+          --kernel_package=@//aosp \
+          --//build/kernel/kleaf:use_prebuilt_gki=false \
+          --notrim_nonlisted_kmi \
+          --nokmi_symbol_list_strict_mode \
+          --//build/kernel/kleaf:kbuild_build_user=Tweaker \
+          --//build/kernel/kleaf:kbuild_build_host=twk-v${{ env.CUSTOM_KERNEL_VERSION }}
 
     - name: Package Kernel, Firmware, Drivers, and Partitions into Flat Bundle
       run: |
@@ -291,7 +310,7 @@ jobs:
         find out/shusky/dist -name "8812au.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
         find out/shusky/dist -name "mt76*.ko" -exec cp {} AnyKernel3/twk_drivers/ \;
         
-        sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (v${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh
+        sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (twk.v${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh
         
         {
           echo '# --- TWEAKER KERNEL HYBRID INJECTION ---'
@@ -309,7 +328,7 @@ jobs:
           
           echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
           echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
-          echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
+          echo 'echo "version=twk.v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
           echo 'echo "versionCode=109" >> $MOD_DIR/module.prop'
           echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
           echo 'echo "description=RAM-disk firmware bypass and modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
@@ -325,6 +344,7 @@ jobs:
           echo '# 2. Stage kernel modules'
           echo 'cp $MOD_BASE/lib/modules/*.ko /dev/twk_modules/'
           echo 'chmod 644 /dev/twk_modules/*.ko'
+          echo 'chcon -R u:object_r:vendor_file:s0 /dev/twk_modules'
           echo ''
           echo '# 3. Stage and flatten firmware (Bypasses subfolder traps)'
           echo 'cp $MOD_BASE/firmware/mediatek/*.bin /dev/twk_firmware/ 2>/dev/null || true'
@@ -374,7 +394,7 @@ jobs:
 
     - name: Ping Phone - Success
       if: success()
-      run: curl -d "✅ Pixel 8 Pro Kernel v${{ env.CUSTOM_KERNEL_VERSION }} Build COMPLETE! Grab the clean package files!" https://ntfy.sh/twk_pixel8_build_alerts
+      run: curl -d "✅ Pixel 8 Pro Kernel twk.v${{ env.CUSTOM_KERNEL_VERSION }} Build COMPLETE! Grab the clean package files!" https://ntfy.sh/twk_pixel8_build_alerts
 
     - name: Ping Phone - Failure
       if: failure()
