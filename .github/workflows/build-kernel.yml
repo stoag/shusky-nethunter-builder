@@ -316,7 +316,7 @@ jobs:
           echo 'rm -rf $MOD_DIR'
           
           echo 'mkdir -p $MOD_DIR/system/vendor/firmware/mediatek'
-          echo 'cp -rf $home/twk_firmware/mediatek/*$MOD_DIR/system/vendor/firmware/mediatek/'
+          echo 'cp -rf $home/twk_firmware/mediatek/* $MOD_DIR/system/vendor/firmware/mediatek/'
           
           echo 'mkdir -p $MOD_DIR/system/vendor/lib/modules'
           echo 'cp -f $home/twk_drivers/*.ko $MOD_DIR/system/vendor/lib/modules/'
@@ -374,3 +374,23 @@ jobs:
 
         find out/ -type f -name "init_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-init_boot.img \;
         find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_dlkm.img \;
+        find out/ -type f -name "vendor_kernel_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_kernel_boot.img \;
+        find out/ -type f -name "system_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-system_dlkm.img \;
+        
+        echo "VERIFYING BUNDLE CONTENTS:"
+        ls -lh bundle/
+
+    - name: Upload Flat Bundle Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: twk-v${{ env.CUSTOM_KERNEL_VERSION }}-release-package
+        path: workspace/bundle/*
+        if-no-files-found: error
+
+    - name: Ping Phone - Success
+      if: success()
+      run: curl -d "✅ Pixel 8 Pro Kernel twk.v${{ env.CUSTOM_KERNEL_VERSION }} Build COMPLETE! Grab the clean package files!" https://ntfy.sh/twk_pixel8_build_alerts
+
+    - name: Ping Phone - Failure
+      if: failure()
+      run: curl -d "❌ Pixel 8 Pro Kernel Build FAILED! Check the logs." https://ntfy.sh/twk_pixel8_build_alerts
