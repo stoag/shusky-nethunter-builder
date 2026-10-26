@@ -80,7 +80,7 @@ jobs:
         # Strictly disable Concurrent Mode to prevent the kali1 runtime crash on the 8812AU
         sed -i 's/ccflags-y += -DCONFIG_CONCURRENT_MODE/#ccflags-y += -DCONFIG_CONCURRENT_MODE/g' drivers/net/wireless/realtek/rtl8812au/Makefile
         
-        echo 'ccflags-y += -DCONFIG_USE_USB_BUFFER_ALLOC_TX -DCONFIG_USE_USB_BUFFER_ALLOC_RX' >> drivers/net/wireless/realtek/rtl8812au/Makefile
+        echo 'ccflags-y += -DCONFIG_USE_USB_BUFFER_ALLOC_TX -DCONFIG_USE_USB_BUFFER_ALLOC_RX -Wno-switch-bool -Wno-parentheses-equality' >> drivers/net/wireless/realtek/rtl8812au/Makefile
         echo 'obj-y += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
         echo 'obj-m := $(MODULE_NAME).o' >> drivers/net/wireless/realtek/rtl8812au/Makefile
 
@@ -91,14 +91,14 @@ jobs:
         # 1. Inject KernelSU Next Inline Source Code        
         curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -                
         
-        # 2. Hardcode KSU_GIT_VERSION & KSU_VERSION_TAG so Bazel's sandbox doesn't trigger fallback warnings
+        # 2. Pin KernelSU-Next version metadata (KSU_GIT_VERSION_VALID=1 prevents sandbox fallback)
         if [ -d "KernelSU-Next" ]; then
-          KSU_GIT_VER=$(git -C KernelSU-Next rev-list --count HEAD 2>/dev/null || echo "33355")
-          KSU_TAG=$(git -C KernelSU-Next describe --tags --abbrev=0 2>/dev/null || echo "v3.4.2")
+          KSUN_TAG=$(git -C KernelSU-Next describe --tags --abbrev=0 2>/dev/null || echo "v3.4.2")
+          KSUN_GIT_VERSION=$(git -C KernelSU-Next rev-list --count HEAD 2>/dev/null || echo "33355")
           for ksu_file in KernelSU-Next/kernel/Kbuild KernelSU-Next/kernel/Makefile; do
             if [ -f "$ksu_file" ]; then
               chmod u+w "$ksu_file"
-              sed -i "1i KSU_GIT_VERSION := $KSU_GIT_VER\nKSU_VERSION_TAG := $KSU_TAG" "$ksu_file"
+              sed -i "1i # CI-pinned KernelSU-Next metadata\nKSU_GIT_VERSION := $KSUN_GIT_VERSION\nKSU_GIT_TAG := $KSUN_TAG\nKSU_VERSION_TAG := $KSUN_TAG\nKSU_GIT_VERSION_VALID := 1\n" "$ksu_file"
             fi
           done
         fi
@@ -286,6 +286,11 @@ jobs:
         # 2. Insert modules directly inside COMMON_GKI_MODULES_LIST in modules.bzl (avoids Starlark redeclaration error)
         chmod u+w modules.bzl
         sed -i '/COMMON_GKI_MODULES_LIST = \[/a \    "drivers/bluetooth/btintel.ko",\n    "drivers/bluetooth/btrtl.ko",\n    "drivers/bluetooth/btusb.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76-usb.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko",\n    "drivers/net/wireless/realtek/rtl8812au/8812au.ko",\n    "net/mac80211/mac80211.ko",\n    "net/wireless/cfg80211.ko",' modules.bzl
+
+        # 3. Allow duplicate module filenames in [dist] when flattening common + shusky outputs into out/shusky/dist
+        ./buildozer 'set allow_duplicate_filenames True' //private/devices/google/shusky:%copy_to_dist_dir //private/devices/google/zuma:%copy_to_dist_dir || true
+        find ../build -name "dist.bzl" -exec chmod u+w {} +
+        find ../build -name "dist.bzl" -exec sed -i 's/"--flat"/"--flat", "--allow_duplicate_filenames"/g' {} +
           
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
