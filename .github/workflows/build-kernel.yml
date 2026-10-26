@@ -287,21 +287,21 @@ jobs:
         chmod u+w modules.bzl
         cat << 'EOF' >> modules.bzl
 
-COMMON_GKI_MODULES_LIST += [
-    "drivers/bluetooth/btintel.ko",
-    "drivers/bluetooth/btrtl.ko",
-    "drivers/bluetooth/btusb.ko",
-    "drivers/net/wireless/mediatek/mt76/mt76.ko",
-    "drivers/net/wireless/mediatek/mt76/mt76-usb.ko",
-    "drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko",
-    "drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko",
-    "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko",
-    "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko",
-    "drivers/net/wireless/realtek/rtl8812au/8812au.ko",
-    "net/mac80211/mac80211.ko",
-    "net/wireless/cfg80211.ko",
-]
-EOF
+        COMMON_GKI_MODULES_LIST += [
+        "drivers/bluetooth/btintel.ko",
+        "drivers/bluetooth/btrtl.ko",
+        "drivers/bluetooth/btusb.ko",
+        "drivers/net/wireless/mediatek/mt76/mt76.ko",
+        "drivers/net/wireless/mediatek/mt76/mt76-usb.ko",
+        "drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko",
+        "drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko",
+        "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko",
+        "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko",
+        "drivers/net/wireless/realtek/rtl8812au/8812au.ko",
+        "net/mac80211/mac80211.ko",
+        "net/wireless/cfg80211.ko",
+        ]
+        EOF
           
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
