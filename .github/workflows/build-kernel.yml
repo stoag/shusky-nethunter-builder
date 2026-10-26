@@ -274,18 +274,14 @@ jobs:
             fi
         done
 
-    - name: Track Loadable Modules in Bazel (Both @//aosp:kernel_aarch64 & shusky:kernel)
+    - name: Track Loadable Modules in Bazel (shusky:kernel only)
       run: |
         cd workspace/aosp
         
-        # 1. Track modules in //private/devices/google/shusky:kernel via buildozer
+        # Track modules strictly in //private/devices/google/shusky:kernel via buildozer
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
         ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko' //private/devices/google/shusky:kernel
-
-        # 2. Insert modules directly inside COMMON_GKI_MODULES_LIST in modules.bzl
-        chmod u+w modules.bzl
-        sed -i '/COMMON_GKI_MODULES_LIST = \[/a \    "drivers/bluetooth/btintel.ko",\n    "drivers/bluetooth/btrtl.ko",\n    "drivers/bluetooth/btusb.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76-usb.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko",\n    "drivers/net/wireless/realtek/rtl8812au/8812au.ko",\n    "net/mac80211/mac80211.ko",\n    "net/wireless/cfg80211.ko",' modules.bzl
           
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
