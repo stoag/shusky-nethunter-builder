@@ -278,10 +278,9 @@ jobs:
       run: |
         cd workspace/aosp
         
-        # 1. Remove mac80211.ko and cfg80211.ko from shusky:kernel so they don't collide with GKI's modules.bzl
-        wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
-        chmod +x buildozer
-        ./buildozer 'remove module_outs net/mac80211/mac80211.ko net/wireless/cfg80211.ko' //private/devices/google/shusky:kernel || true
+        # 1. Strip mac80211.ko and cfg80211.ko from device-level .bzl/BUILD files so they don't duplicate GKI's modules.bzl
+        find ../private/devices/google -type f \( -name "*.bzl" -o -name "BUILD.bazel" \) -exec chmod u+w {} +
+        find ../private/devices/google -type f \( -name "*.bzl" -o -name "BUILD.bazel" \) -exec sed -i '/"net\/mac80211\/mac80211.ko"/d; /"net\/wireless\/cfg80211.ko"/d' {} +
 
         # 2. Add all 12 GKI-compiled modules strictly to COMMON_GKI_MODULES_LIST in modules.bzl
         chmod u+w modules.bzl
@@ -418,4 +417,3 @@ jobs:
     - name: Ping Phone - Failure
       if: failure()
       run: curl -d "❌ Pixel 8 Pro Kernel Build FAILED! Check the logs." https://ntfy.sh/twk_pixel8_build_alerts
-      
