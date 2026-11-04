@@ -418,3 +418,4 @@ jobs:
     - name: Ping Phone - Failure
       if: failure()
       run: curl -d "❌ Pixel 8 Pro Kernel Build FAILED! Check the logs." https://ntfy.sh/twk_pixel8_build_alerts
+      
