@@ -110,8 +110,8 @@ jobs:
           echo 'CONFIG_LOCALVERSION="-twk.v${{ env.CUSTOM_KERNEL_VERSION }}"'
 
           echo '# Core Wireless Subsystems'
-          echo 'CONFIG_CFG80211=m'
-          echo 'CONFIG_MAC80211=m'
+          echo 'CONFIG_CFG80211=y'
+          echo 'CONFIG_MAC80211=y'
           echo 'CONFIG_CFG80211_CERTIFICATION_ONUS=y'
           echo 'CONFIG_WIRELESS=y'
 
@@ -427,4 +427,4 @@ jobs:
 
     - name: Ping Phone - Failure
       if: failure()
-      run: curl -d "❌ Pixel 8 Pro Kernel Build FAILED! 
+      run: curl -d "❌ Pixel 8 Pro Kernel Build FAILED! Check the logs." https://ntfy.sh/twk_pixel8_build_alerts
