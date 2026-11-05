@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-24.04    
     env:      
       # Release Version
-      CUSTOM_KERNEL_VERSION: "1.25"          
+      CUSTOM_KERNEL_VERSION: "1.24"          
     steps:    
     - name: Free Runner Disk Space      
       run: |        
@@ -282,10 +282,11 @@ jobs:
       run: |
         cd workspace/aosp
         
-        # Track device-specific modules exclusively in shusky:kernel
+        # Track ONLY our custom out-of-tree hardware drivers in shusky:kernel. 
+        # Do NOT add mac80211.ko or cfg80211.ko here, as Bazel already tracks them in the base ZUMA target and will throw a duplicate filegroup crash.
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
-        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko net/mac80211/mac80211.ko net/wireless/cfg80211.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
+        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko' //private/devices/google/shusky:kernel
           
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
@@ -382,8 +383,6 @@ jobs:
           echo 'echo "/dev/twk_firmware" > /sys/module/firmware_class/parameters/path'
           echo ''
           echo '# 6. Load the external adapter drivers safely'
-          echo 'insmod /dev/twk_modules/cfg80211.ko'
-          echo 'insmod /dev/twk_modules/mac80211.ko'
           echo 'insmod /dev/twk_modules/mt76.ko'
           echo 'insmod /dev/twk_modules/mt76-usb.ko'
           echo 'insmod /dev/twk_modules/mt76x02-lib.ko'
