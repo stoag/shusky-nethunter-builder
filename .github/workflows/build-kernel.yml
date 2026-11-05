@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-24.04    
     env:      
       # Release Version
-      CUSTOM_KERNEL_VERSION: "1.25"          
+      CUSTOM_KERNEL_VERSION: "1.24"          
     steps:    
     - name: Free Runner Disk Space      
       run: |        
@@ -110,8 +110,8 @@ jobs:
           echo 'CONFIG_LOCALVERSION="-twk.v${{ env.CUSTOM_KERNEL_VERSION }}"'
 
           echo '# Core Wireless Subsystems'
-          echo 'CONFIG_CFG80211=y'
-          echo 'CONFIG_MAC80211=y'
+          echo 'CONFIG_CFG80211=m'
+          echo 'CONFIG_MAC80211=m'
           echo 'CONFIG_CFG80211_CERTIFICATION_ONUS=y'
           echo 'CONFIG_WIRELESS=y'
           
@@ -273,19 +273,6 @@ jobs:
                 echo "Patched KMI Symbol List: $list_file"
             fi
         done
-
-    - name: Track Loadable Modules in Bazel (Single-Source via modules.bzl)
-      run: |
-        cd workspace/aosp
-        
-        # 1. Remove mac80211.ko and cfg80211.ko from shusky:kernel so they don't collide with GKI's modules.bzl
-        wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
-        chmod +x buildozer
-        ./buildozer 'remove module_outs net/mac80211/mac80211.ko net/wireless/cfg80211.ko' //private/devices/google/shusky:kernel || true
-
-        # 2. Add all 12 GKI-compiled modules strictly to COMMON_GKI_MODULES_LIST in modules.bzl
-        chmod u+w modules.bzl
-        sed -i '/COMMON_GKI_MODULES_LIST = \[/a \    "drivers/bluetooth/btintel.ko",\n    "drivers/bluetooth/btrtl.ko",\n    "drivers/bluetooth/btusb.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76-usb.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko",\n    "drivers/net/wireless/realtek/rtl8812au/8812au.ko",\n    "net/mac80211/mac80211.ko",\n    "net/wireless/cfg80211.ko",' modules.bzl
           
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
@@ -315,16 +302,17 @@ jobs:
         cp -L out/shusky/dist/Image.lz4 AnyKernel3/
         
         # Fetch ALL Official Linux Firmware variants for MT7612U (Both 'u' and 'non-u' binaries)
-        mkdir -p AnyKernel3/twk_firmware
-        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662.bin" -o AnyKernel3/twk_firmware/mt7662.bin
-        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662_rom_patch.bin" -o AnyKernel3/twk_firmware/mt7662_rom_patch.bin
-        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u.bin" -o AnyKernel3/twk_firmware/mt7662u.bin
-        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u_rom_patch.bin" -o AnyKernel3/twk_firmware/mt7662u_rom_patch.bin
+        mkdir -p AnyKernel3/twk_firmware/mediatek
+        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662.bin
+        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662_rom_patch.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662_rom_patch.bin
+        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u.bin
+        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u_rom_patch.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u_rom_patch.bin
         
-        # Copy the Realtek driver AND the MediaTek modular stack (using -L to dereference Bazel symlinks)
+        # Find drivers in the raw Bazel sandbox cache and copy them out securely
         mkdir -p AnyKernel3/twk_drivers
-        find -L out/shusky/dist -name "8812au.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
-        find -L out/shusky/dist -name "mt76*.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
+        for module in 8812au.ko mt76.ko mt76-usb.ko mt76x02-lib.ko mt76x02-usb.ko mt76x2-common.ko mt76x2u.ko cfg80211.ko mac80211.ko btrtl.ko btusb.ko btintel.ko; do
+            find out/bazel/bin -type f -name "$module" | head -n 1 | xargs -I {} cp {} AnyKernel3/twk_drivers/ || true
+        done
         
         echo "VERIFYING COPIED DRIVERS:"
         ls -lh AnyKernel3/twk_drivers/
@@ -382,6 +370,8 @@ jobs:
           echo 'echo "/dev/twk_firmware" > /sys/module/firmware_class/parameters/path'
           echo ''
           echo '# 6. Load the external adapter drivers safely'
+          echo 'insmod /dev/twk_modules/cfg80211.ko'
+          echo 'insmod /dev/twk_modules/mac80211.ko'
           echo 'insmod /dev/twk_modules/mt76.ko'
           echo 'insmod /dev/twk_modules/mt76-usb.ko'
           echo 'insmod /dev/twk_modules/mt76x02-lib.ko'
