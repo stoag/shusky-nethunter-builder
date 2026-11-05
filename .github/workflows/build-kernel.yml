@@ -282,11 +282,15 @@ jobs:
       run: |
         cd workspace/aosp
         
-        # Track ONLY our custom out-of-tree hardware drivers in shusky:kernel. 
-        # Do NOT add mac80211.ko or cfg80211.ko here, as Bazel already tracks them in the base ZUMA target and will throw a duplicate filegroup crash.
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
+        
+        # Track ONLY our custom out-of-tree hardware drivers in shusky:kernel. 
         ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko' //private/devices/google/shusky:kernel
+        
+        # Patch Bazel's copy_to_dist_dir rule directly so it automatically accepts the duplicate .ko files when flattening the dist folder
+        find ../build/bazel_common_rules -name "dist.bzl" -exec chmod u+w {} +
+        find ../build/bazel_common_rules -name "dist.bzl" -exec sed -i 's/allow_duplicate_filenames = False/allow_duplicate_filenames = True/g' {} +
           
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
@@ -423,4 +427,4 @@ jobs:
 
     - name: Ping Phone - Failure
       if: failure()
-      run: curl -d "❌ Pixel 8 Pro Kernel Build FAILED! Check the logs." https://ntfy.sh/twk_pixel8_build_alerts
+      run: curl -d "❌ Pixel 8 Pro Kernel Build FAILED! 
