@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-24.04    
     env:      
       # Release Version
-      CUSTOM_KERNEL_VERSION: "1.24"          
+      CUSTOM_KERNEL_VERSION: "1.25"          
     steps:    
     - name: Free Runner Disk Space      
       run: |        
@@ -278,9 +278,10 @@ jobs:
       run: |
         cd workspace/aosp
         
-        # 1. Strip mac80211.ko and cfg80211.ko from device-level .bzl/BUILD files so they don't duplicate GKI's modules.bzl
-        find ../private/devices/google -type f \( -name "*.bzl" -o -name "BUILD.bazel" \) -exec chmod u+w {} +
-        find ../private/devices/google -type f \( -name "*.bzl" -o -name "BUILD.bazel" \) -exec sed -i '/"net\/mac80211\/mac80211.ko"/d; /"net\/wireless\/cfg80211.ko"/d' {} +
+        # 1. Remove mac80211.ko and cfg80211.ko from shusky:kernel so they don't collide with GKI's modules.bzl
+        wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
+        chmod +x buildozer
+        ./buildozer 'remove module_outs net/mac80211/mac80211.ko net/wireless/cfg80211.ko' //private/devices/google/shusky:kernel || true
 
         # 2. Add all 12 GKI-compiled modules strictly to COMMON_GKI_MODULES_LIST in modules.bzl
         chmod u+w modules.bzl
@@ -314,11 +315,11 @@ jobs:
         cp -L out/shusky/dist/Image.lz4 AnyKernel3/
         
         # Fetch ALL Official Linux Firmware variants for MT7612U (Both 'u' and 'non-u' binaries)
-        mkdir -p AnyKernel3/twk_firmware/mediatek
-        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662.bin
-        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662_rom_patch.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662_rom_patch.bin
-        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u.bin
-        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u_rom_patch.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u_rom_patch.bin
+        mkdir -p AnyKernel3/twk_firmware
+        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662.bin" -o AnyKernel3/twk_firmware/mt7662.bin
+        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662_rom_patch.bin" -o AnyKernel3/twk_firmware/mt7662_rom_patch.bin
+        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u.bin" -o AnyKernel3/twk_firmware/mt7662u.bin
+        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u_rom_patch.bin" -o AnyKernel3/twk_firmware/mt7662u_rom_patch.bin
         
         # Copy the Realtek driver AND the MediaTek modular stack (using -L to dereference Bazel symlinks)
         mkdir -p AnyKernel3/twk_drivers
@@ -331,51 +332,56 @@ jobs:
         sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (twk.v${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh
         
         {
-          echo '# --- TWEAKER KERNEL HYBRID INJECTION ---'
+          echo '# --- TWEAKER KERNEL HYBRID INJECTION (NO OVERLAY SHADOWING) ---'
           echo 'ui_print " ";'
           echo 'ui_print "- Injecting Mediatek Firmware & Adapter Drivers...";'
           echo 'mount /data;'
           echo 'MOD_DIR="/data/adb/modules/twk_nethunter_adapters"'
           echo 'rm -rf $MOD_DIR'
           
-          echo 'mkdir -p $MOD_DIR/system/vendor/firmware/mediatek'
-          echo 'cp -rf $home/twk_firmware/mediatek/* $MOD_DIR/system/vendor/firmware/mediatek/'
+          echo 'mkdir -p $MOD_DIR/twk_firmware'
+          echo 'cp -rf $home/twk_firmware/* $MOD_DIR/twk_firmware/'
           
-          echo 'mkdir -p $MOD_DIR/system/vendor/lib/modules'
-          echo 'cp -f $home/twk_drivers/*.ko $MOD_DIR/system/vendor/lib/modules/'
+          echo 'mkdir -p $MOD_DIR/twk_modules'
+          echo 'cp -f $home/twk_drivers/*.ko $MOD_DIR/twk_modules/'
           
           echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
           echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
           echo 'echo "version=twk.v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-          echo 'echo "versionCode=109" >> $MOD_DIR/module.prop'
+          echo 'echo "versionCode=110" >> $MOD_DIR/module.prop'
           echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
-          echo 'echo "description=RAM-disk firmware bypass and modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
+          echo 'echo "description=Non-shadowing RAM-disk firmware and modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
           
           echo 'cat << '"'"'EOF_SERVICE'"'"' > $MOD_DIR/service.sh'
           echo '#!/system/bin/sh'
-          echo 'MOD_BASE="/data/adb/modules/twk_nethunter_adapters/system/vendor"'
+          echo 'MOD_DIR="/data/adb/modules/twk_nethunter_adapters"'
           echo ''
-          echo '# 1. Create temporary RAM disks'
+          echo '# 1. Wait for Android boot to complete so internal Wi-Fi, BT, and Audio load undisturbed'
+          echo 'until [ "$(getprop sys.boot_completed)" = "1" ]; do'
+          echo '  sleep 2'
+          echo 'done'
+          echo ''
+          echo '# 2. Create temporary RAM disks'
           echo 'mkdir -p /dev/twk_modules'
           echo 'mkdir -p /dev/twk_firmware'
           echo ''
-          echo '# 2. Stage kernel modules'
-          echo 'cp $MOD_BASE/lib/modules/*.ko /dev/twk_modules/'
+          echo '# 3. Symlink all stock vendor firmware so internal hardware never loses firmware access'
+          echo 'ln -sf /vendor/firmware/* /dev/twk_firmware/ 2>/dev/null || true'
+          echo 'ln -sf /vendor/firmware/mediatek/* /dev/twk_firmware/ 2>/dev/null || true'
+          echo ''
+          echo '# 4. Stage custom firmware and kernel modules'
+          echo 'cp -f $MOD_DIR/twk_firmware/*.bin /dev/twk_firmware/ 2>/dev/null || true'
+          echo 'chmod 644 /dev/twk_firmware/*.bin'
+          echo 'chcon -R u:object_r:vendor_file:s0 /dev/twk_firmware'
+          echo ''
+          echo 'cp -f $MOD_DIR/twk_modules/*.ko /dev/twk_modules/ 2>/dev/null || true'
           echo 'chmod 644 /dev/twk_modules/*.ko'
           echo 'chcon -R u:object_r:vendor_file:s0 /dev/twk_modules'
           echo ''
-          echo '# 3. Stage and flatten firmware (Bypasses subfolder traps)'
-          echo 'cp $MOD_BASE/firmware/mediatek/*.bin /dev/twk_firmware/ 2>/dev/null || true'
-          echo 'cp $MOD_BASE/firmware/*.bin /dev/twk_firmware/ 2>/dev/null || true'
-          echo 'chmod 644 /dev/twk_firmware/*.bin'
-          echo ''
-          echo '# 4. Authorize the kernel to read the firmware via SELinux'
-          echo 'chcon -R u:object_r:vendor_file:s0 /dev/twk_firmware'
-          echo ''
-          echo '# 5. Point the kernel to our new RAM disk'
+          echo '# 5. Point the kernel to our combined RAM disk'
           echo 'echo "/dev/twk_firmware" > /sys/module/firmware_class/parameters/path'
           echo ''
-          echo '# 6. Load the drivers safely'
+          echo '# 6. Load the external adapter drivers safely'
           echo 'insmod /dev/twk_modules/mt76.ko'
           echo 'insmod /dev/twk_modules/mt76-usb.ko'
           echo 'insmod /dev/twk_modules/mt76x02-lib.ko'
