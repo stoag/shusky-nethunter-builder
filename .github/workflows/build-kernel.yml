@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-24.04    
     env:      
       # Release Version
-      CUSTOM_KERNEL_VERSION: "1.24"          
+      CUSTOM_KERNEL_VERSION: "1.25"          
     steps:    
     - name: Free Runner Disk Space      
       run: |        
@@ -103,7 +103,7 @@ jobs:
           done
         fi
 
-        # 3. Append Configs (NetHunter, MT76, 8812AU, KSU)
+        # 3. Append Core GKI configs (Netfilter, NAT, WireGuard, KSU) directly to generic defconfig
         chmod u+w arch/arm64/configs/gki_defconfig
         {
           echo '# Custom Kernel Signature'
@@ -114,23 +114,6 @@ jobs:
           echo 'CONFIG_MAC80211=m'
           echo 'CONFIG_CFG80211_CERTIFICATION_ONUS=y'
           echo 'CONFIG_WIRELESS=y'
-          
-          echo '# MODULE: MediaTek MT7612U (Panda PAU0D)'
-          echo 'CONFIG_WLAN_VENDOR_MEDIATEK=y'
-          echo 'CONFIG_MT76_CORE=m'
-          echo 'CONFIG_MT76_LEDS=n'
-          echo 'CONFIG_MT76_USB=m'
-          echo 'CONFIG_MT76x02_LIB=m'
-          echo 'CONFIG_MT76x02_USB=m'
-          echo 'CONFIG_MT76x2_COMMON=m'
-          echo 'CONFIG_MT76x2U=m'
-          
-          echo '# MODULE: Realtek RTL8812AU'
-          echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
-          echo 'CONFIG_RTW88=n'
-          echo 'CONFIG_RTW88_CORE=n'
-          echo 'CONFIG_RTW88_USB=n'
-          echo 'CONFIG_RTL8812AU=m'
 
           echo '# Inline KernelSU Next'
           echo 'CONFIG_KSU=y'
@@ -169,7 +152,28 @@ jobs:
           echo 'CONFIG_BT_HCIBTUSB=m'
         } >> arch/arm64/configs/gki_defconfig
 
-        # 4. Disable POST_DEFCONFIG_CMDS="check_defconfig" in aosp/build.config.gki
+        # 4. Append Custom Adapters to DEVICE-SPECIFIC config so GKI kernel ignores them
+        chmod u+w ../private/devices/google/shusky/Kconfig.ext || true
+        {
+          echo '# MODULE: MediaTek MT7612U (Panda PAU0D)'
+          echo 'CONFIG_WLAN_VENDOR_MEDIATEK=y'
+          echo 'CONFIG_MT76_CORE=m'
+          echo 'CONFIG_MT76_LEDS=n'
+          echo 'CONFIG_MT76_USB=m'
+          echo 'CONFIG_MT76x02_LIB=m'
+          echo 'CONFIG_MT76x02_USB=m'
+          echo 'CONFIG_MT76x2_COMMON=m'
+          echo 'CONFIG_MT76x2U=m'
+          
+          echo '# MODULE: Realtek RTL8812AU'
+          echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
+          echo 'CONFIG_RTW88=n'
+          echo 'CONFIG_RTW88_CORE=n'
+          echo 'CONFIG_RTW88_USB=n'
+          echo 'CONFIG_RTL8812AU=m'
+        } >> ../private/devices/google/shusky/Kconfig.ext
+
+        # 5. Disable POST_DEFCONFIG_CMDS="check_defconfig" in aosp/build.config.gki
         chmod u+w build.config.gki
         echo "DEFCONFIG=gki_defconfig" > build.config.gki
 
@@ -273,6 +277,15 @@ jobs:
                 echo "Patched KMI Symbol List: $list_file"
             fi
         done
+
+    - name: Track Loadable Modules in Bazel (shusky:kernel ONLY)
+      run: |
+        cd workspace/aosp
+        
+        # Track device-specific modules exclusively in shusky:kernel
+        wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
+        chmod +x buildozer
+        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko net/mac80211/mac80211.ko net/wireless/cfg80211.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko' //private/devices/google/shusky:kernel
           
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
@@ -308,11 +321,10 @@ jobs:
         curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u.bin
         curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u_rom_patch.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u_rom_patch.bin
         
-        # Find drivers in the raw Bazel sandbox cache and copy them out securely
+        # Copy the Realtek driver AND the MediaTek modular stack (using -L to dereference Bazel symlinks)
         mkdir -p AnyKernel3/twk_drivers
-        for module in 8812au.ko mt76.ko mt76-usb.ko mt76x02-lib.ko mt76x02-usb.ko mt76x2-common.ko mt76x2u.ko cfg80211.ko mac80211.ko btrtl.ko btusb.ko btintel.ko; do
-            find out/bazel/bin -type f -name "$module" | head -n 1 | xargs -I {} cp {} AnyKernel3/twk_drivers/ || true
-        done
+        find -L out/shusky/dist -name "8812au.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
+        find -L out/shusky/dist -name "mt76*.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
         
         echo "VERIFYING COPIED DRIVERS:"
         ls -lh AnyKernel3/twk_drivers/
