@@ -110,10 +110,27 @@ jobs:
           echo 'CONFIG_LOCALVERSION="-twk.v${{ env.CUSTOM_KERNEL_VERSION }}"'
 
           echo '# Core Wireless Subsystems'
-          echo 'CONFIG_CFG80211=y'
-          echo 'CONFIG_MAC80211=y'
+          echo 'CONFIG_CFG80211=m'
+          echo 'CONFIG_MAC80211=m'
           echo 'CONFIG_CFG80211_CERTIFICATION_ONUS=y'
           echo 'CONFIG_WIRELESS=y'
+          
+          echo '# MODULE: MediaTek MT7612U (Panda PAU0D)'
+          echo 'CONFIG_WLAN_VENDOR_MEDIATEK=y'
+          echo 'CONFIG_MT76_CORE=m'
+          echo 'CONFIG_MT76_LEDS=n'
+          echo 'CONFIG_MT76_USB=m'
+          echo 'CONFIG_MT76x02_LIB=m'
+          echo 'CONFIG_MT76x02_USB=m'
+          echo 'CONFIG_MT76x2_COMMON=m'
+          echo 'CONFIG_MT76x2U=m'
+          
+          echo '# MODULE: Realtek RTL8812AU'
+          echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
+          echo 'CONFIG_RTW88=n'
+          echo 'CONFIG_RTW88_CORE=n'
+          echo 'CONFIG_RTW88_USB=n'
+          echo 'CONFIG_RTL8812AU=m'
 
           echo '# Inline KernelSU Next'
           echo 'CONFIG_KSU=y'
@@ -152,28 +169,7 @@ jobs:
           echo 'CONFIG_BT_HCIBTUSB=m'
         } >> arch/arm64/configs/gki_defconfig
 
-        # 4. Append Custom Adapters to DEVICE-SPECIFIC config so GKI kernel ignores them
-        chmod u+w ../private/devices/google/shusky/Kconfig.ext || true
-        {
-          echo '# MODULE: MediaTek MT7612U (Panda PAU0D)'
-          echo 'CONFIG_WLAN_VENDOR_MEDIATEK=y'
-          echo 'CONFIG_MT76_CORE=m'
-          echo 'CONFIG_MT76_LEDS=n'
-          echo 'CONFIG_MT76_USB=m'
-          echo 'CONFIG_MT76x02_LIB=m'
-          echo 'CONFIG_MT76x02_USB=m'
-          echo 'CONFIG_MT76x2_COMMON=m'
-          echo 'CONFIG_MT76x2U=m'
-          
-          echo '# MODULE: Realtek RTL8812AU'
-          echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
-          echo 'CONFIG_RTW88=n'
-          echo 'CONFIG_RTW88_CORE=n'
-          echo 'CONFIG_RTW88_USB=n'
-          echo 'CONFIG_RTL8812AU=m'
-        } >> ../private/devices/google/shusky/Kconfig.ext
-
-        # 5. Disable POST_DEFCONFIG_CMDS="check_defconfig" in aosp/build.config.gki
+        # 4. Disable POST_DEFCONFIG_CMDS="check_defconfig" in aosp/build.config.gki
         chmod u+w build.config.gki
         echo "DEFCONFIG=gki_defconfig" > build.config.gki
 
@@ -278,19 +274,14 @@ jobs:
             fi
         done
 
-    - name: Track Loadable Modules in Bazel (shusky:kernel ONLY)
+    - name: Handle Duplicate Filename Collision in Bazel Dist
       run: |
         cd workspace/aosp
         
-        wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
-        chmod +x buildozer
-        
-        # Track ONLY our custom out-of-tree hardware drivers in shusky:kernel. 
-        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko' //private/devices/google/shusky:kernel
-        
-        # Patch Bazel's copy_to_dist_dir rule directly so it automatically accepts the duplicate .ko files when flattening the dist folder
-        find ../build/bazel_common_rules -name "dist.bzl" -exec chmod u+w {} +
-        find ../build/bazel_common_rules -name "dist.bzl" -exec sed -i 's/allow_duplicate_filenames = False/allow_duplicate_filenames = True/g' {} +
+        # Patch Bazel's copy_to_dist_dir rule directly using valid Starlark syntax (.extend instead of .append) 
+        # so it automatically accepts the duplicate .ko files (from core and shusky) when flattening the dist folder
+        find ../build/bazel_common_rules/dist -name "dist.bzl" -exec chmod u+w {} +
+        find ../build/bazel_common_rules/dist -name "dist.bzl" -exec sed -i 's/default_args.append("--flat")/default_args.extend(["--flat", "--allow_duplicate_filenames"])/g' {} +
           
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
@@ -387,6 +378,8 @@ jobs:
           echo 'echo "/dev/twk_firmware" > /sys/module/firmware_class/parameters/path'
           echo ''
           echo '# 6. Load the external adapter drivers safely'
+          echo 'insmod /dev/twk_modules/cfg80211.ko'
+          echo 'insmod /dev/twk_modules/mac80211.ko'
           echo 'insmod /dev/twk_modules/mt76.ko'
           echo 'insmod /dev/twk_modules/mt76-usb.ko'
           echo 'insmod /dev/twk_modules/mt76x02-lib.ko'
