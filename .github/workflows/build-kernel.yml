@@ -7,7 +7,7 @@ jobs:
   build-kernel:
     runs-on: ubuntu-latest
     env:
-      CUSTOM_KERNEL_VERSION: "1.20"
+      CUSTOM_KERNEL_VERSION: "1.26"
     steps:
       - name: Free Runner Disk Space
         run: |
@@ -78,10 +78,18 @@ jobs:
           find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +
           sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig
           
-          # 1. Inject KernelSU Next Inline Source Code (using setup.sh without conflicting manual ccflags-y)
+          # 1. Inject KernelSU Next Inline Source Code
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
           
-          # 2. Append Configs (NetHunter, Modular MT76, 8812AU, KSU)
+          # 2. Configure Kbuild version variables natively (No manual ccflags-y overrides to avoid macro redefinition collision)
+          KSU_GIT_VER=$(git -C KernelSU-Next rev-list --count HEAD)
+          KSU_TAG=$(git -C KernelSU-Next describe --tags --abbrev=0 2>/dev/null || echo "v3.4.2")
+          
+          sed -i "s/KSU_GIT_VERSION := .*/KSU_GIT_VERSION := ${KSU_GIT_VER}/g" KernelSU-Next/kernel/Kbuild
+          sed -i "s/KSU_VERSION_TAG := .*/KSU_VERSION_TAG := ${KSU_TAG}/g" KernelSU-Next/kernel/Kbuild
+          sed -i "1i KSU_GIT_VERSION := ${KSU_GIT_VER}\nKSU_GIT_VERSION_VALID := 1\nKSU_GIT_TAG := ${KSU_TAG}\nKSU_VERSION_TAG := ${KSU_TAG}" KernelSU-Next/kernel/Kbuild
+
+          # 3. Append Configs (NetHunter, Modular MT76, 8812AU, KSU)
           {
             echo '# Custom Kernel Signature'
             echo 'CONFIG_LOCALVERSION="-twk.v${{ env.CUSTOM_KERNEL_VERSION }}"'
@@ -310,7 +318,7 @@ jobs:
             echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
             echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
             echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-            echo 'echo "versionCode=120" >> $MOD_DIR/module.prop'
+            echo 'echo "versionCode=125" >> $MOD_DIR/module.prop'
             echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
             echo 'echo "description=Injects MediaTek firmware & modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
             echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
