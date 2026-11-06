@@ -274,18 +274,22 @@ jobs:
             fi
         done
 
-    - name: Track Loadable Modules in Bazel (shusky:kernel ONLY)
+    - name: Track Loadable Modules in Bazel
       run: |
         cd workspace/aosp
         
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
         
-        # 1. Force Bazel to compile and package all 12 requested custom out-of-tree hardware drivers in shusky:kernel
-        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko net/mac80211/mac80211.ko net/wireless/cfg80211.ko' //private/devices/google/shusky:kernel
+        # 1. Track ALL custom modules in the foundational GKI kernel so it doesn't fail compilation
+        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko net/mac80211/mac80211.ko net/wireless/cfg80211.ko' @//aosp:kernel_aarch64 || true
         
-        # 2. Add the native duplicate bypass flag directly onto the copy_to_dist_dir rule for the device so [dist] accepts them
-        ./buildozer 'set allow_duplicate_filenames True' //private/devices/google/shusky:%copy_to_dist_dir //private/devices/google/zuma:%copy_to_dist_dir || true
+        # 2. Track ONLY the hardware modules in the device kernel (so shusky packages them, but without colliding on the core networking modules)
+        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko' //private/devices/google/shusky:kernel
+
+        # 3. Patch Bazel's copy_to_dist_dir rule to allow duplicate filenames so flattening out/shusky/dist doesn't crash
+        find ../build/bazel_common_rules -name "dist.bzl" -exec chmod u+w {} +
+        find ../build/bazel_common_rules -name "dist.bzl" -exec sed -i 's/allow_duplicate_filenames = False/allow_duplicate_filenames = True/g' {} +
           
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
@@ -325,9 +329,6 @@ jobs:
         mkdir -p AnyKernel3/twk_drivers
         find -L out/shusky/dist -name "8812au.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
         find -L out/shusky/dist -name "mt76*.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
-        find -L out/shusky/dist -name "bt*.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
-        find -L out/shusky/dist -name "mac80211.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
-        find -L out/shusky/dist -name "cfg80211.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
         
         echo "VERIFYING COPIED DRIVERS:"
         ls -lh AnyKernel3/twk_drivers/
@@ -385,11 +386,6 @@ jobs:
           echo 'echo "/dev/twk_firmware" > /sys/module/firmware_class/parameters/path'
           echo ''
           echo '# 6. Load the external adapter drivers safely'
-          echo 'insmod /dev/twk_modules/cfg80211.ko'
-          echo 'insmod /dev/twk_modules/mac80211.ko'
-          echo 'insmod /dev/twk_modules/btrtl.ko'
-          echo 'insmod /dev/twk_modules/btintel.ko'
-          echo 'insmod /dev/twk_modules/btusb.ko'
           echo 'insmod /dev/twk_modules/mt76.ko'
           echo 'insmod /dev/twk_modules/mt76-usb.ko'
           echo 'insmod /dev/twk_modules/mt76x02-lib.ko'
