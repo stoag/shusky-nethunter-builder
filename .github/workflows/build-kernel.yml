@@ -1,182 +1,149 @@
-name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU-Next
+name: Build Pixel 8 Pro (shusky) Kernel
 
 on:
   push:
     branches:
       - main
-      - master
   workflow_dispatch:
 
-jobs:  
-  build-kernel:    
-    runs-on: ubuntu-24.04    
-    env:      
-      # Release Version
-      CUSTOM_KERNEL_VERSION: "1.25"          
-    steps:    
-    - name: Free Runner Disk Space      
-      run: |        
-        sudo rm -rf /usr/share/dotnet        
-        sudo rm -rf /usr/local/lib/android        
-        sudo rm -rf /opt/ghc        
-        sudo rm -rf "/usr/local/share/boost"        
-        sudo apt-get clean        
-        df -h    
-    
-    - name: Install Build Dependencies      
-      run: |        
-        sudo apt-get update        
-        sudo apt-get install -y bc build-essential curl flex bison libssl-dev libelf-dev python3 repo git zip libncurses5-dev    
-    
-    - name: Configure Git Credentials      
-      run: |        
-        git config --global user.name "Builder"        
-        git config --global user.email "builder@localhost"    
-    
-    - name: Cache Bazel & Kleaf Build Output      
-      uses: actions/cache@v4      
-      with:        
-        path: |          
-          ~/.cache/bazel          
-          workspace/out/bazel        
-        key: ${{ runner.os }}-bazel-shusky-${{ hashFiles('workspace/private/devices/google/shusky/**') }}        
-        restore-keys: |          
-          ${{ runner.os }}-bazel-shusky-    
-    
-    - name: Initialize & Sync Google Kernel Source      
-      run: |        
-        mkdir -p workspace        
-        cd workspace                
-        
-        repo init -u https://android.googlesource.com/kernel/manifest -b android-gs-shusky-6.1-android16 --depth=1                
-        repo sync -c -j$(nproc) --no-tags --no-clone-bundle        
+jobs:
+  build-kernel:
+    name: Build Kernel
+    runs-on: ubuntu-latest
+    env:
+      CUSTOM_KERNEL_VERSION: 1.25
 
-    - name: Patch Wireless Configs (Prevent MAC80211 LED Linker Panics)
+    steps:
+    - name: Checkout Repo
+      uses: actions/checkout@v4
+
+    - name: Free Disk Space
       run: |
-        cd workspace/aosp
-        chmod u+w net/mac80211/Kconfig
-        find drivers/net/wireless -name "Kconfig" -exec chmod u+w {} +
-        find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +
-        sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig
-    
-    - name: Inject Morrownr Linux 6.1-Ready Driver (8812AU)
-      run: |        
-        cd workspace/aosp                
-        
-        chmod u+w drivers/net/wireless/realtek/Makefile                
-        rm -rf drivers/net/wireless/realtek/rtw88 drivers/net/wireless/realtek/rtl8812au
-        
-        mkdir -p drivers/net/wireless/realtek/rtw88
-        touch drivers/net/wireless/realtek/rtw88/Kconfig
-        
-        git clone https://github.com/stoag/8812au-20210820.git drivers/net/wireless/realtek/rtl8812au                
-        rm -rf drivers/net/wireless/realtek/rtl8812au/.git                
-        
-        sed -i 's/CONFIG_RTW_NAPI = y/CONFIG_RTW_NAPI = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
-        sed -i 's/CONFIG_RTW_GRO = y/CONFIG_RTW_GRO = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
-        sed -i 's/CONFIG_RTW_NETIF_SG = y/CONFIG_RTW_NETIF_SG = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
-        sed -i 's/CONFIG_LOAD_PHY_PARA_FROM_FILE = y/CONFIG_LOAD_PHY_PARA_FROM_FILE = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
-        
-        # Strictly disable Concurrent Mode to prevent the kali1 runtime crash on the 8812AU
-        sed -i 's/ccflags-y += -DCONFIG_CONCURRENT_MODE/#ccflags-y += -DCONFIG_CONCURRENT_MODE/g' drivers/net/wireless/realtek/rtl8812au/Makefile
-        
-        echo 'ccflags-y += -DCONFIG_USE_USB_BUFFER_ALLOC_TX -DCONFIG_USE_USB_BUFFER_ALLOC_RX -Wno-switch-bool -Wno-parentheses-equality' >> drivers/net/wireless/realtek/rtl8812au/Makefile
-        echo 'obj-y += rtl8812au/' >> drivers/net/wireless/realtek/Makefile                
-        echo 'obj-m := $(MODULE_NAME).o' >> drivers/net/wireless/realtek/rtl8812au/Makefile
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf "/usr/local/share/boost"
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        docker system prune -a -f
 
-    - name: Apply KernelSU Next & NetHunter Configs      
-      run: |        
-        cd workspace/aosp                
+    - name: Install Build Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential bc flex bison libssl-dev python3 git zip libncurses-dev
         
-        # 1. Inject KernelSU Next Inline Source Code        
-        curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -                
-        
-        # 2. Pin KernelSU-Next version metadata (KSU_GIT_VERSION_VALID=1 prevents sandbox fallback)
-        if [ -d "KernelSU-Next" ]; then
-          KSUN_TAG=$(git -C KernelSU-Next describe --tags --abbrev=0 2>/dev/null || echo "v3.4.2")
-          KSUN_GIT_VERSION=$(git -C KernelSU-Next rev-list --count HEAD 2>/dev/null || echo "33355")
-          for ksu_file in KernelSU-Next/kernel/Kbuild KernelSU-Next/kernel/Makefile; do
-            if [ -f "$ksu_file" ]; then
-              chmod u+w "$ksu_file"
-              sed -i "1i # CI-pinned KernelSU-Next metadata\nKSU_GIT_VERSION := $KSUN_GIT_VERSION\nKSU_GIT_TAG := $KSUN_TAG\nKSU_VERSION_TAG := $KSUN_TAG\nKSU_GIT_VERSION_VALID := 1\n" "$ksu_file"
-            fi
-          done
-        fi
+        # Install repo
+        mkdir -p ~/bin
+        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+        chmod a+x ~/bin/repo
+        sudo ln -sf ~/bin/repo /usr/bin/repo
 
-        # 3. Append Core GKI configs (Netfilter, NAT, WireGuard, KSU) directly to generic defconfig
-        chmod u+w arch/arm64/configs/gki_defconfig
+    - name: Sync Google Pixel Kernel Source (Shusky)
+      run: |
+        mkdir workspace
+        cd workspace
+        # Syncing android14-6.1 for Pixel 8 Pro
+        repo init -u https://android.googlesource.com/kernel/manifest -b android14-6.1 --depth=1
+        repo sync -c -j$(nproc) --no-tags --no-clone-bundle
+
+    - name: Inject MediaTek (MT76) & Bluetooth Firmware for RAM Disk
+      run: |
+        cd workspace
+        mkdir -p private/devices/google/shusky/vendor_dlkm/firmware/mediatek
+        
+        # Download strictly the NON-u variants required by the driver
+        wget -qO private/devices/google/shusky/vendor_dlkm/firmware/mediatek/mt7662_rom_patch.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662_rom_patch.bin
+        wget -qO private/devices/google/shusky/vendor_dlkm/firmware/mediatek/mt7662.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662.bin
+        
+        # Download the 'u' variants as well, just in case
+        wget -qO private/devices/google/shusky/vendor_dlkm/firmware/mediatek/mt7662u_rom_patch.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u_rom_patch.bin
+        wget -qO private/devices/google/shusky/vendor_dlkm/firmware/mediatek/mt7662u.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u.bin
+
+        mkdir -p private/devices/google/shusky/vendor_dlkm/firmware
+        wget -qO private/devices/google/shusky/vendor_dlkm/firmware/rt2870.bin https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/rt2870.bin
+
+    - name: Patch Kconfig for MAC80211 LED linker conflict
+      run: |
+        cd workspace/private/devices/google/shusky
+        echo 'CONFIG_MAC80211_LEDS=y' >> shusky.fragment
+
+    - name: Configure NetHunter & Wireless Kernel Flags
+      run: |
+        cd workspace/private/devices/google/shusky
         {
-          echo '# Custom Kernel Signature'
-          echo 'CONFIG_LOCALVERSION="-twk.v${{ env.CUSTOM_KERNEL_VERSION }}"'
-
-          echo '# Core Wireless Subsystems'
-          echo 'CONFIG_CFG80211=m'
-          echo 'CONFIG_MAC80211=m'
-          echo 'CONFIG_CFG80211_CERTIFICATION_ONUS=y'
-          echo 'CONFIG_WIRELESS=y'
-          
-          echo '# MODULE: MediaTek MT7612U (Panda PAU0D)'
+          echo 'CONFIG_MODULES=y'
+          echo 'CONFIG_MAC80211=y'
+          echo 'CONFIG_CFG80211=y'
+          echo 'CONFIG_WLAN=y'
+          echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
           echo 'CONFIG_WLAN_VENDOR_MEDIATEK=y'
-          echo 'CONFIG_MT76_CORE=m'
-          echo 'CONFIG_MT76_LEDS=n'
           echo 'CONFIG_MT76_USB=m'
-          echo 'CONFIG_MT76x02_LIB=m'
           echo 'CONFIG_MT76x02_USB=m'
           echo 'CONFIG_MT76x2_COMMON=m'
           echo 'CONFIG_MT76x2U=m'
-          
-          echo '# MODULE: Realtek RTL8812AU'
-          echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
-          echo 'CONFIG_RTW88=n'
-          echo 'CONFIG_RTW88_CORE=n'
-          echo 'CONFIG_RTW88_USB=n'
-          echo 'CONFIG_RTL8812AU=m'
-
-          echo '# Inline KernelSU Next'
-          echo 'CONFIG_KSU=y'
-          echo 'CONFIG_TRIM_NONLISTED_KMI=n'
-          
-          echo '# USB ConfigFS & HID Arsenal'
-          echo 'CONFIG_CONFIGFS_FS=y'
+          echo 'CONFIG_MT76_LEDS=n'
+          echo 'CONFIG_BT=y'
+          echo 'CONFIG_BT_RFCOMM=y'
+          echo 'CONFIG_BT_RFCOMM_TTY=y'
+          echo 'CONFIG_BT_BNEP=y'
+          echo 'CONFIG_BT_BNEP_MC_FILTER=y'
+          echo 'CONFIG_BT_BNEP_PROTO_FILTER=y'
+          echo 'CONFIG_BT_HIDP=y'
+          echo 'CONFIG_BT_HCIBTUSB=m'
+          echo 'CONFIG_BT_HCIBTUSB_AUTOSUSPEND=y'
+          echo 'CONFIG_BT_HCIBTUSB_BCM=y'
+          echo 'CONFIG_BT_HCIBTUSB_MTK=y'
+          echo 'CONFIG_BT_HCIBTUSB_RTL=y'
+          echo 'CONFIG_MAC80211_MESH=y'
           echo 'CONFIG_USB_CONFIGFS=y'
-          echo 'CONFIG_USB_GADGETFS=y'
           echo 'CONFIG_USB_CONFIGFS_F_HID=y'
-          echo 'CONFIG_USB_CONFIGFS_F_MASS_STORAGE=y'
-          echo 'CONFIG_USB_CONFIGFS_F_ECM=y'
-          echo 'CONFIG_USB_CONFIGFS_F_ACM=y'
-          echo 'CONFIG_USB_CONFIGFS_RNDIS=y'
           echo 'CONFIG_USB_CONFIGFS_NCM=y'
-          
-          echo '# AFWall+ & Netfilter Logging'
-          echo 'CONFIG_NETFILTER_NETLINK_LOG=y'
-          echo 'CONFIG_NETFILTER_NETLINK_QUEUE=y'
-          echo 'CONFIG_NETFILTER_XT_TARGET_LOG=y'
+          echo 'CONFIG_USB_CONFIGFS_MASS_STORAGE=y'
+          echo 'CONFIG_NF_CONNTRACK=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_NFLOG=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_NFQUEUE=y'
           echo 'CONFIG_NETFILTER_XT_MATCH_OWNER=y'
           echo 'CONFIG_NETFILTER_XT_MATCH_STATE=y'
           echo 'CONFIG_NETFILTER_XT_MATCH_MARK=y'
           echo 'CONFIG_NETFILTER_XT_TARGET_MARK=y'
-          
-          echo '# NAT & WireGuard'
+          echo 'CONFIG_NF_NAT=y'
           echo 'CONFIG_IP_NF_NAT=y'
-          echo 'CONFIG_IP6_NF_NAT=y'
           echo 'CONFIG_IP_NF_MANGLE=y'
           echo 'CONFIG_IP6_NF_MANGLE=y'
-          echo 'CONFIG_NETFILTER_XT_TARGET_MASQUERADE=y'
           echo 'CONFIG_WIREGUARD=y'
-          
-          echo 'CONFIG_BT_HCIBTUSB=m'
-        } >> arch/arm64/configs/gki_defconfig
+        } >> Kconfig.ext
 
-        # 4. Disable POST_DEFCONFIG_CMDS="check_defconfig" in aosp/build.config.gki
-        chmod u+w build.config.gki
-        echo "DEFCONFIG=gki_defconfig" > build.config.gki
-
-    - name: Authorize NetHunter Symbols in GKI
+    - name: Clone Realtek 8812au & KernelSU-Next
       run: |
         cd workspace
         
+        # KernelSU-Next
+        curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next
+        
+        # Create driver path
+        mkdir -p private/google-modules/wlan/realtek
+        cd private/google-modules/wlan/realtek
+        
+        # Clone your specific 8812au driver fork
+        git clone https://github.com/stoag/8812au-20210820.git rtl8812au
+        cd rtl8812au
+        rm -rf .git
+        
+        # Natively suppress compiler warnings that cause GKI strict Clang to crash
+        sed -i 's/EXTRA_CFLAGS += -O3/EXTRA_CFLAGS += -O3 -Wno-switch-bool -Wno-parentheses-equality/' Makefile
+
+    - name: Inject 8812AU into GKI Build Graph
+      run: |
+        cd workspace
+        echo 'obj-y += realtek/' >> private/google-modules/wlan/Makefile
+        echo 'obj-m += rtl8812au/' > private/google-modules/wlan/realtek/Makefile
+
+    - name: Override savedefconfig protection
+      run: |
+        cd workspace
+        sed -i 's/UPDATE_DEFCONFIG_ARGS="--werror"/UPDATE_DEFCONFIG_ARGS=""/' aosp/build.config.gki
+
+    - name: Update ABI Symbol List
+      run: |
+        cd workspace
         {
           echo '_bcd2bin'
           echo '__dev_kfree_skb_irq'
@@ -265,21 +232,7 @@ jobs:
           echo 'yield'
         } > missing_symbols.txt
         
-        for list_file in aosp/android/abi_gki_aarch64 aosp/android/abi_gki_aarch64_pixel aosp/android/abi_gki_aarch64_core aosp/android/abi_gki_aarch64_virtual_device; do
-            if [ -f "$list_file" ]; then
-                chmod u+w "$list_file" || true
-                echo "" >> "$list_file"
-                cat missing_symbols.txt >> "$list_file"
-                echo "Patched KMI Symbol List: $list_file"
-            fi
-        done
-
-    - name: Track Loadable Modules in Bazel
-      run: |
-        cd workspace/aosp
-        
-        wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
-        chmod +x buildozer
+        find . -type f \( -name "abi_gki_aarch64*" -o -name "*symbol_list*" \) ! -name "*.bzl" ! -name "*.py" ! -name "*.sh" -exec sh -c 'cat missing_symbols.txt >> "{}"' \;
 
     - name: Track Loadable Modules in Bazel
       run: |
@@ -296,23 +249,65 @@ jobs:
         chmod u+w ../build/bazel_common_rules/dist/dist.bzl
         sed -i 's/allow_duplicate_filenames = False/allow_duplicate_filenames = True/g' ../build/bazel_common_rules/dist/dist.bzl
 
-
-
-
-    - name: Compile Pixel 8 Pro Kernel via Bazel      
-      run: |        
+    - name: Generate KernelSU SELinux & Firmware Loading Script
+      run: |
         cd workspace
+        mkdir -p kernelsu_overlay/system/vendor/lib/modules
+        
+        cat << 'EOF' > kernelsu_overlay/service.sh
+        #!/system/bin/sh
+        
+        # 1. Mount custom firmware directory over the native firmware path using magic KernelSU mounts
+        mkdir -p /dev/twk_firmware
+        cp /data/adb/modules/twk_nethunter_adapters/system/vendor/firmware/mediatek/* /dev/twk_firmware/
+        cp /data/adb/modules/twk_nethunter_adapters/system/vendor/firmware/rt2870.bin /dev/twk_firmware/
+        chcon u:object_r:vendor_file:s0 /dev/twk_firmware/*
+        mount -o bind /dev/twk_firmware /vendor/firmware
+        
+        # 2. Insmod the newly compiled adapters
+        MOD_DIR="/data/adb/modules/twk_nethunter_adapters/system/vendor/lib/modules"
+        
+        insmod $MOD_DIR/mac80211.ko
+        insmod $MOD_DIR/cfg80211.ko
+        
+        insmod $MOD_DIR/mt76.ko
+        insmod $MOD_DIR/mt76-usb.ko
+        insmod $MOD_DIR/mt76x02-lib.ko
+        insmod $MOD_DIR/mt76x02-usb.ko
+        insmod $MOD_DIR/mt76x2-common.ko
+        insmod $MOD_DIR/mt76x2u.ko
+        
+        insmod $MOD_DIR/8812au.ko
+        
+        insmod $MOD_DIR/btintel.ko
+        insmod $MOD_DIR/btrtl.ko
+        insmod $MOD_DIR/btusb.ko
+        EOF
+        
+        chmod +x kernelsu_overlay/service.sh
+
+    - name: Force Build & Bypass Prebuilt Google Cache
+      run: |
+        cd workspace
+        
+        find private/devices/google -type f -name "*.bzl" -exec sed -i '/gki_prebuilt_fips140/d' {} +
+        find private/devices/google -type f -name "BUILD.bazel" -exec sed -i '/download_fips140/d' {} +
+        
+        # Force a pure from-source compile natively handling KernelSU versioning
+        export KSU_GIT_VERSION_VALID=1
+        
         ./build_shusky.sh \
           --kernel_package=@//aosp \
           --//build/kernel/kleaf:use_prebuilt_gki=false \
           --no//private/devices/google/common:download_prebuilt_gki_fips140 \
           --notrim \
-          --nokmi_symbol_list_strict_mode
+          --nokmi_symbol_list_strict_mode \
+          --//build/kernel/kleaf:kbuild_build_user=Tweaker \
+          --//build/kernel/kleaf:kbuild_build_host=twk.v1.25
 
-    - name: Package Kernel, Firmware, Drivers, and Partitions into Flat Bundle
+    - name: Package AK3 Boot Zip
       run: |
         cd workspace
-        mkdir -p bundle
         
         git clone https://github.com/stoag/AnyKernel3-Pixel8Pro.git AnyKernel3
         
@@ -324,114 +319,87 @@ jobs:
         chmod +x AnyKernel3/tools/magiskboot
         rm magisk.zip
         
-        cp -L out/shusky/dist/Image.lz4 AnyKernel3/
+        cp out/shusky/dist/Image.lz4 AnyKernel3/
         
-        # Fetch ALL Official Linux Firmware variants for MT7612U (Both 'u' and 'non-u' binaries)
-        mkdir -p AnyKernel3/twk_firmware/mediatek
-        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662.bin
-        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662_rom_patch.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662_rom_patch.bin
-        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u.bin
-        curl -L "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/mediatek/mt7662u_rom_patch.bin" -o AnyKernel3/twk_firmware/mediatek/mt7662u_rom_patch.bin
-        
-        # Copy the Realtek driver AND the MediaTek modular stack (using -L to dereference Bazel symlinks)
-        mkdir -p AnyKernel3/twk_drivers
-        find -L out/shusky/dist -name "8812au.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
-        find -L out/shusky/dist -name "mt76*.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
-        
-        echo "VERIFYING COPIED DRIVERS:"
-        ls -lh AnyKernel3/twk_drivers/
-        
-        sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (twk.v${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh
-        
-        {
-          echo '# --- TWEAKER KERNEL HYBRID INJECTION (NO OVERLAY SHADOWING) ---'
-          echo 'ui_print " ";'
-          echo 'ui_print "- Injecting Mediatek Firmware & Adapter Drivers...";'
-          echo 'mount /data;'
-          echo 'MOD_DIR="/data/adb/modules/twk_nethunter_adapters"'
-          echo 'rm -rf $MOD_DIR'
-          
-          echo 'mkdir -p $MOD_DIR/twk_firmware'
-          echo 'cp -rf $home/twk_firmware/* $MOD_DIR/twk_firmware/'
-          
-          echo 'mkdir -p $MOD_DIR/twk_modules'
-          echo 'cp -f $home/twk_drivers/*.ko $MOD_DIR/twk_modules/'
-          
-          echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
-          echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
-          echo 'echo "version=twk.v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-          echo 'echo "versionCode=110" >> $MOD_DIR/module.prop'
-          echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
-          echo 'echo "description=Non-shadowing RAM-disk firmware and modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
-          
-          echo 'cat << '"'"'EOF_SERVICE'"'"' > $MOD_DIR/service.sh'
-          echo '#!/system/bin/sh'
-          echo 'MOD_DIR="/data/adb/modules/twk_nethunter_adapters"'
-          echo ''
-          echo '# 1. Wait for Android boot to complete so internal Wi-Fi, BT, and Audio load undisturbed'
-          echo 'until [ "$(getprop sys.boot_completed)" = "1" ]; do'
-          echo '  sleep 2'
-          echo 'done'
-          echo ''
-          echo '# 2. Create temporary RAM disks'
-          echo 'mkdir -p /dev/twk_modules'
-          echo 'mkdir -p /dev/twk_firmware'
-          echo ''
-          echo '# 3. Symlink all stock vendor firmware so internal hardware never loses firmware access'
-          echo 'ln -sf /vendor/firmware/* /dev/twk_firmware/ 2>/dev/null || true'
-          echo 'ln -sf /vendor/firmware/mediatek/* /dev/twk_firmware/ 2>/dev/null || true'
-          echo ''
-          echo '# 4. Stage custom firmware and kernel modules'
-          echo 'cp -f $MOD_DIR/twk_firmware/*.bin /dev/twk_firmware/ 2>/dev/null || true'
-          echo 'chmod 644 /dev/twk_firmware/*.bin'
-          echo 'chcon -R u:object_r:vendor_file:s0 /dev/twk_firmware'
-          echo ''
-          echo 'cp -f $MOD_DIR/twk_modules/*.ko /dev/twk_modules/ 2>/dev/null || true'
-          echo 'chmod 644 /dev/twk_modules/*.ko'
-          echo 'chcon -R u:object_r:vendor_file:s0 /dev/twk_modules'
-          echo ''
-          echo '# 5. Point the kernel to our combined RAM disk'
-          echo 'echo "/dev/twk_firmware" > /sys/module/firmware_class/parameters/path'
-          echo ''
-          echo '# 6. Load the external adapter drivers safely'
-          echo 'insmod /dev/twk_modules/mt76.ko'
-          echo 'insmod /dev/twk_modules/mt76-usb.ko'
-          echo 'insmod /dev/twk_modules/mt76x02-lib.ko'
-          echo 'insmod /dev/twk_modules/mt76x02-usb.ko'
-          echo 'insmod /dev/twk_modules/mt76x2-common.ko'
-          echo 'insmod /dev/twk_modules/mt76x2u.ko'
-          echo 'insmod /dev/twk_modules/8812au.ko rtw_drv_log_level=6 rtw_power_mgnt=0 rtw_switch_usb_mode=0'
-          echo 'EOF_SERVICE'
-          
-          echo 'chmod +x $MOD_DIR/service.sh'
-          
-          echo 'ui_print "- Dual Adapter support integrated successfully!";'
-          echo '# ---------------------------------------------------'
-        } >> AnyKernel3/anykernel.sh
+        sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh
         
         cd AnyKernel3
-        zip -r9 ../bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-anykernel3.zip * -x README.md
+        zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-AK3-Boot.zip * -x README.md
         cd ..
 
-        find out/ -type f -name "init_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-init_boot.img \;
-        find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_dlkm.img \;
-        find out/ -type f -name "vendor_kernel_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_kernel_boot.img \;
-        find out/ -type f -name "system_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-system_dlkm.img \;
+    - name: Package Raw Drivers
+      run: |
+        cd workspace
+        mkdir -p Raw-Drivers
         
-        echo "VERIFYING BUNDLE CONTENTS:"
-        ls -lh bundle/
+        cp out/shusky/dist/mac80211.ko Raw-Drivers/ || true
+        cp out/shusky/dist/cfg80211.ko Raw-Drivers/ || true
+        cp out/shusky/dist/mt76.ko Raw-Drivers/ || true
+        cp out/shusky/dist/mt76-usb.ko Raw-Drivers/ || true
+        cp out/shusky/dist/mt76x02-lib.ko Raw-Drivers/ || true
+        cp out/shusky/dist/mt76x02-usb.ko Raw-Drivers/ || true
+        cp out/shusky/dist/mt76x2-common.ko Raw-Drivers/ || true
+        cp out/shusky/dist/mt76x2u.ko Raw-Drivers/ || true
+        cp out/shusky/dist/8812au.ko Raw-Drivers/ || true
+        cp out/shusky/dist/btintel.ko Raw-Drivers/ || true
+        cp out/shusky/dist/btrtl.ko Raw-Drivers/ || true
+        cp out/shusky/dist/btusb.ko Raw-Drivers/ || true
+        
+        cd Raw-Drivers
+        zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Raw-Drivers.zip *
+        cd ..
 
-    - name: Upload Flat Bundle Artifacts
+    - name: Package NetHunter KSU Module
+      run: |
+        cd workspace
+        
+        cp out/shusky/dist/mac80211.ko kernelsu_overlay/system/vendor/lib/modules/ || true
+        cp out/shusky/dist/cfg80211.ko kernelsu_overlay/system/vendor/lib/modules/ || true
+        cp out/shusky/dist/mt76.ko kernelsu_overlay/system/vendor/lib/modules/ || true
+        cp out/shusky/dist/mt76-usb.ko kernelsu_overlay/system/vendor/lib/modules/ || true
+        cp out/shusky/dist/mt76x02-lib.ko kernelsu_overlay/system/vendor/lib/modules/ || true
+        cp out/shusky/dist/mt76x02-usb.ko kernelsu_overlay/system/vendor/lib/modules/ || true
+        cp out/shusky/dist/mt76x2-common.ko kernelsu_overlay/system/vendor/lib/modules/ || true
+        cp out/shusky/dist/mt76x2u.ko kernelsu_overlay/system/vendor/lib/modules/ || true
+        cp out/shusky/dist/8812au.ko kernelsu_overlay/system/vendor/lib/modules/ || true
+        cp out/shusky/dist/btintel.ko kernelsu_overlay/system/vendor/lib/modules/ || true
+        cp out/shusky/dist/btrtl.ko kernelsu_overlay/system/vendor/lib/modules/ || true
+        cp out/shusky/dist/btusb.ko kernelsu_overlay/system/vendor/lib/modules/ || true
+        
+        mkdir -p kernelsu_overlay/system/vendor/firmware/mediatek
+        cp private/devices/google/shusky/vendor_dlkm/firmware/mediatek/mt7662_rom_patch.bin kernelsu_overlay/system/vendor/firmware/mediatek/ || true
+        cp private/devices/google/shusky/vendor_dlkm/firmware/mediatek/mt7662.bin kernelsu_overlay/system/vendor/firmware/mediatek/ || true
+        cp private/devices/google/shusky/vendor_dlkm/firmware/mediatek/mt7662u_rom_patch.bin kernelsu_overlay/system/vendor/firmware/mediatek/ || true
+        cp private/devices/google/shusky/vendor_dlkm/firmware/mediatek/mt7662u.bin kernelsu_overlay/system/vendor/firmware/mediatek/ || true
+        cp private/devices/google/shusky/vendor_dlkm/firmware/rt2870.bin kernelsu_overlay/system/vendor/firmware/ || true
+        
+        cat << 'EOF' > kernelsu_overlay/module.prop
+        id=twk_nethunter_adapters
+        name=Tweaker Kernel NetHunter Adapters
+        version=v${{ env.CUSTOM_KERNEL_VERSION }}
+        versionCode=1
+        author=Tweaker
+        description=Injects MediaTek MT76 & Realtek 8812AU modules for NetHunter into the GKI kernel on boot.
+        EOF
+        
+        cd kernelsu_overlay
+        zip -r9 ../Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-NetHunter-Modules.zip *
+        cd ..
+
+    - name: Upload AK3 Boot Zip
       uses: actions/upload-artifact@v4
       with:
-        name: twk-v${{ env.CUSTOM_KERNEL_VERSION }}-release-package
-        path: workspace/bundle/*
-        if-no-files-found: error
+        name: Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-AK3-Boot
+        path: workspace/Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-AK3-Boot.zip
 
-    - name: Ping Phone - Success
-      if: success()
-      run: curl -d "✅ Pixel 8 Pro Kernel twk.v${{ env.CUSTOM_KERNEL_VERSION }} Build COMPLETE! Grab the clean package files!" https://ntfy.sh/twk_pixel8_build_alerts
+    - name: Upload Raw Drivers
+      uses: actions/upload-artifact@v4
+      with:
+        name: Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Raw-Drivers
+        path: workspace/Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-Raw-Drivers.zip
 
-    - name: Ping Phone - Failure
-      if: failure()
-      run: curl -d "❌ Pixel 8 Pro Kernel Build FAILED! Check the logs." https://ntfy.sh/twk_pixel8_build_alerts
+    - name: Upload NetHunter KSU Modules Zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-NetHunter-Modules
+        path: workspace/Tweaker-Kernel-${{ env.CUSTOM_KERNEL_VERSION }}-NetHunter-Modules.zip
