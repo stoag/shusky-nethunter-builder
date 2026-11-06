@@ -1,6 +1,9 @@
 name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU-Next
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -318,7 +321,7 @@ jobs:
             echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
             echo 'echo "name=Tweaker Kernel Hybrid Adapters" >> $MOD_DIR/module.prop'
             echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-            echo 'echo "versionCode=125" >> $MOD_DIR/module.prop'
+            echo 'echo "versionCode=126" >> $MOD_DIR/module.prop'
             echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
             echo 'echo "description=Injects MediaTek firmware & modular drivers for Realtek/MTK." >> $MOD_DIR/module.prop'
             echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
