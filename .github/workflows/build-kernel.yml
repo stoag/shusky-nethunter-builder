@@ -89,19 +89,21 @@ jobs:
 
           echo 'obj-y += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
 
-          # Inject GKI stub fallbacks for restricted VFS symbols
+          # Only inject GKI stub fallbacks if they are not already present in the fork
           OSDEP_FILE=$(find drivers/net/wireless/realtek/rtl8812au -name "osdep_service_linux.c" -o -name "osdep_service.c" | head -n 1)
-          {
-            echo '/* GKI PREBUILT BYPASS - STUB FILE I/O */'
-            echo '#include <linux/fs.h>'
-            echo '#include <linux/namei.h>'
-            echo '#include <linux/err.h>'
-            echo '#include <linux/errno.h>'
-            echo 'struct file *filp_open_dummy(const char *filename, int flags, umode_t mode) { return ERR_PTR(-ENOENT); }'
-            echo 'ssize_t kernel_read_dummy(struct file *file, void *buf, size_t count, loff_t *pos) { return -EIO; }'
-            echo 'ssize_t kernel_write_dummy(struct file *file, const void *buf, size_t count, loff_t *pos) { return -EIO; }'
-            echo 'int kern_path_dummy(const char *name, unsigned int flags, struct path *path) { return -ENOENT; }'
-          } >> "$OSDEP_FILE"
+          if ! grep -q "filp_open_dummy" "$OSDEP_FILE"; then
+            {
+              echo '/* GKI PREBUILT BYPASS - STUB FILE I/O */'
+              echo '#include <linux/fs.h>'
+              echo '#include <linux/namei.h>'
+              echo '#include <linux/err.h>'
+              echo '#include <linux/errno.h>'
+              echo 'struct file *filp_open_dummy(const char *filename, int flags, umode_t mode) { return ERR_PTR(-ENOENT); }'
+              echo 'ssize_t kernel_read_dummy(struct file *file, void *buf, size_t count, loff_t *pos) { return -EIO; }'
+              echo 'ssize_t kernel_write_dummy(struct file *file, const void *buf, size_t count, loff_t *pos) { return -EIO; }'
+              echo 'int kern_path_dummy(const char *name, unsigned int flags, struct path *path) { return -ENOENT; }'
+            } >> "$OSDEP_FILE"
+          fi
 
       - name: Apply KernelSU-Next & NetHunter Configs
         run: |
