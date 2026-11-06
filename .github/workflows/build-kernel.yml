@@ -280,17 +280,25 @@ jobs:
         
         wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
         chmod +x buildozer
-        
-        # 1. Track ALL custom modules in the foundational GKI kernel so it doesn't fail compilation
-        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko net/mac80211/mac80211.ko net/wireless/cfg80211.ko' @//aosp:kernel_aarch64 || true
-        
-        # 2. Track ONLY the hardware modules in the device kernel (so shusky packages them, but without colliding on the core networking modules)
-        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko' //private/devices/google/shusky:kernel
 
-        # 3. Patch Bazel's copy_to_dist_dir rule to allow duplicate filenames so flattening out/shusky/dist doesn't crash
-        find ../build/bazel_common_rules -name "dist.bzl" -exec chmod u+w {} +
-        find ../build/bazel_common_rules -name "dist.bzl" -exec sed -i 's/allow_duplicate_filenames = False/allow_duplicate_filenames = True/g' {} +
-          
+    - name: Track Loadable Modules in Bazel
+      run: |
+        cd workspace/aosp
+
+        # 1. Register all 12 compiled modules in @//aosp:kernel_aarch64 (passes step [514 / 572])
+        chmod u+w modules.bzl
+        sed -i '/COMMON_GKI_MODULES_LIST = \[/a \    "drivers/bluetooth/btintel.ko",\n    "drivers/bluetooth/btrtl.ko",\n    "drivers/bluetooth/btusb.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76-usb.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko",\n    "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko",\n    "drivers/net/wireless/realtek/rtl8812au/8812au.ko",\n    "net/mac80211/mac80211.ko",\n    "net/wireless/cfg80211.ko",' modules.bzl
+
+        # 2. Remove duplicate mac80211.ko and cfg80211.ko exports from device Starlark files
+        find ../private/devices/google -type f \( -name "*.bzl" -o -name "BUILD.bazel" \) -exec sed -i '/"net\/mac80211\/mac80211.ko",/d; /"net\/wireless\/cfg80211.ko",/d' {} +
+
+        # 3. Safely enable allow_duplicate_filenames in dist.bzl without touching .append()
+        chmod u+w ../build/bazel_common_rules/dist/dist.bzl
+        sed -i 's/allow_duplicate_filenames = False/allow_duplicate_filenames = True/g' ../build/bazel_common_rules/dist/dist.bzl
+
+
+
+
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
         cd workspace
