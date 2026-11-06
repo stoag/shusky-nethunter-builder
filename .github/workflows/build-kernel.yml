@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-24.04    
     env:      
       # Release Version
-      CUSTOM_KERNEL_VERSION: "1.24"          
+      CUSTOM_KERNEL_VERSION: "1.25"          
     steps:    
     - name: Free Runner Disk Space      
       run: |        
@@ -274,14 +274,18 @@ jobs:
             fi
         done
 
-    - name: Handle Duplicate Filename Collision in Bazel Dist
+    - name: Track Loadable Modules in Bazel (shusky:kernel ONLY)
       run: |
         cd workspace/aosp
         
-        # Patch Bazel's copy_to_dist_dir rule directly using valid Starlark syntax (.extend instead of .append) 
-        # so it automatically accepts the duplicate .ko files (from core and shusky) when flattening the dist folder
-        find ../build/bazel_common_rules/dist -name "dist.bzl" -exec chmod u+w {} +
-        find ../build/bazel_common_rules/dist -name "dist.bzl" -exec sed -i 's/default_args.append("--flat")/default_args.extend(["--flat", "--allow_duplicate_filenames"])/g' {} +
+        wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
+        chmod +x buildozer
+        
+        # 1. Force Bazel to compile and package all 12 requested custom out-of-tree hardware drivers in shusky:kernel
+        ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko net/mac80211/mac80211.ko net/wireless/cfg80211.ko' //private/devices/google/shusky:kernel
+        
+        # 2. Add the native duplicate bypass flag directly onto the copy_to_dist_dir rule for the device so [dist] accepts them
+        ./buildozer 'set allow_duplicate_filenames True' //private/devices/google/shusky:%copy_to_dist_dir //private/devices/google/zuma:%copy_to_dist_dir || true
           
     - name: Compile Pixel 8 Pro Kernel via Bazel      
       run: |        
@@ -321,6 +325,9 @@ jobs:
         mkdir -p AnyKernel3/twk_drivers
         find -L out/shusky/dist -name "8812au.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
         find -L out/shusky/dist -name "mt76*.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
+        find -L out/shusky/dist -name "bt*.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
+        find -L out/shusky/dist -name "mac80211.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
+        find -L out/shusky/dist -name "cfg80211.ko" -exec cp -L {} AnyKernel3/twk_drivers/ \;
         
         echo "VERIFYING COPIED DRIVERS:"
         ls -lh AnyKernel3/twk_drivers/
@@ -380,6 +387,9 @@ jobs:
           echo '# 6. Load the external adapter drivers safely'
           echo 'insmod /dev/twk_modules/cfg80211.ko'
           echo 'insmod /dev/twk_modules/mac80211.ko'
+          echo 'insmod /dev/twk_modules/btrtl.ko'
+          echo 'insmod /dev/twk_modules/btintel.ko'
+          echo 'insmod /dev/twk_modules/btusb.ko'
           echo 'insmod /dev/twk_modules/mt76.ko'
           echo 'insmod /dev/twk_modules/mt76-usb.ko'
           echo 'insmod /dev/twk_modules/mt76x02-lib.ko'
