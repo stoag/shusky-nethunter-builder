@@ -335,3 +335,10 @@ jobs:
         name: ${{ env.CUSTOM_KERNEL_VERSION }}-release-package
         path: workspace/bundle/*
         if-no-files-found: error
+    - name: Ping Phone - Success
+      if: success()
+      run: curl -d "✅ Pixel 8 Pro Kernel Build (v${{ env.CUSTOM_KERNEL_VERSION }}) COMPLETE! Wake up and grab the ZIP!" https://ntfy.sh/twk_pixel8_build_alerts
+      
+    - name: Ping Phone - Failure
+      if: failure()
+      run: curl -d "❌ Pixel 8 Pro Kernel Build (v${{ env.CUSTOM_KERNEL_VERSION }}) FAILED! Check the logs." https://ntfy.sh/twk_pixel8_build_alerts
