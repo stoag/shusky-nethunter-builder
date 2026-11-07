@@ -252,15 +252,10 @@ jobs:
       - name: Compile Pixel 8 Pro Kernel via Bazel
         run: |
           cd workspace
-          ./build_shusky.sh \
-            --kernel_package=@//aosp \
-            --//build/kernel/kleaf:use_prebuilt_gki=false \
-            --no//private/devices/google/common:download_prebuilt_gki_fips140 \
-            --notrim \
-            --nokmi_symbol_list_strict_media=false \
-            --nokmi_symbol_list_strict_mode
+          PUBLIC_URL="https://ci.android.com/builds/submitted/{build_number}/{target}/latest/raw/{filename}"
+          EXTRA_ARGS="--kernel_package=@//aosp --notrim_nonlisted_kmi --nokmi_symbol_list_strict_mode --//build/kernel/kleaf:gki_prebuilts_download_url=\"$PUBLIC_URL\"" ./build_shusky.sh --lto=thin
 
-      - name: Package Kernel, Firmware & Safe AK3 Zip
+      - name: Package Kernel, Firmware & Safe AK3 Zip (Non-Shadowing)
         run: |
           cd workspace
           mkdir -p bundle
@@ -292,10 +287,11 @@ jobs:
           sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (v${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh
 
           cat << 'EOF_AK3' >> AnyKernel3/anykernel.sh
-          # --- SAFE DRIVER STAGING (NO VENDOR OVERLAY SHADOWING) ---
+          # --- NON-SHADOWING STAGING (PRESERVES STOCK /VENDOR & BT) ---
           ui_print " ";
-          ui_print "- Staging NetHunter Drivers & Firmware...";
+          ui_print "- Staging Non-Shadowing Adapters & Firmware...";
           mount /data;
+          rm -rf /data/adb/modules/twk_nethunter_drivers
           MOD_DIR="/data/adb/modules/twk_nethunter_adapters"
           rm -rf $MOD_DIR
           mkdir -p $MOD_DIR/twk_firmware
@@ -309,7 +305,7 @@ jobs:
           version=v${{ env.CUSTOM_KERNEL_VERSION }}
           versionCode=127
           author=Tweaker
-          description=Staged modular drivers and firmware for external adapters.
+          description=Non-shadowing staging directory for external wireless adapters.
           EOF_PROP
 
           cat << 'EOF_SVC' > $MOD_DIR/service.sh
@@ -317,15 +313,25 @@ jobs:
           MOD_DIR="/data/adb/modules/twk_nethunter_adapters"
           until [ "$(getprop sys.boot_completed)" = "1" ]; do sleep 2; done
           mkdir -p /dev/twk_modules /dev/twk_firmware
+          ln -sf /vendor/firmware/* /dev/twk_firmware/ 2>/dev/null || true
+          ln -sf /vendor/firmware/mediatek/* /dev/twk_firmware/ 2>/dev/null || true
           cp -f $MOD_DIR/twk_firmware/*.bin /dev/twk_firmware/ 2>/dev/null || true
           chmod 644 /dev/twk_firmware/*.bin
           chcon -R u:object_r:vendor_file:s0 /dev/twk_firmware
           cp -f $MOD_DIR/twk_modules/*.ko /dev/twk_modules/ 2>/dev/null || true
           chmod 644 /dev/twk_modules/*.ko
           chcon -R u:object_r:vendor_file:s0 /dev/twk_modules
+          echo "/dev/twk_firmware" > /sys/module/firmware_class/parameters/path
+          insmod /dev/twk_modules/mt76.ko 2>/dev/null || true
+          insmod /dev/twk_modules/mt76-usb.ko 2>/dev/null || true
+          insmod /dev/twk_modules/mt76x02-lib.ko 2>/dev/null || true
+          insmod /dev/twk_modules/mt76x02-usb.ko 2>/dev/null || true
+          insmod /dev/twk_modules/mt76x2-common.ko 2>/dev/null || true
+          insmod /dev/twk_modules/mt76x2u.ko 2>/dev/null || true
+          insmod /dev/twk_modules/8812au.ko rtw_drv_log_level=6 rtw_power_mgnt=0 rtw_switch_usb_mode=0 2>/dev/null || true
           EOF_SVC
           chmod +x $MOD_DIR/service.sh
-          ui_print "- Adapters staged successfully!";
+          ui_print "- Non-shadowing adapters armed successfully!";
           EOF_AK3
 
           sed -i "s/\${{ env.CUSTOM_KERNEL_VERSION }}/${{ env.CUSTOM_KERNEL_VERSION }}/g" AnyKernel3/anykernel.sh
