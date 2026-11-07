@@ -52,7 +52,6 @@ jobs:
       - name: Apply Kali NetHunter Subsystem Overrides
         run: |
           cd workspace/aosp
-          # Disable MAC80211 LEDs in Kconfig to prevent GKI symbol linker panics
           find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +
           sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig
 
@@ -70,7 +69,6 @@ jobs:
           sed -i '1i CONFIG_RTL8812AU=m' drivers/net/wireless/realtek/rtl8812au/Makefile
           sed -i 's/CONFIG_PLATFORM_I386_PC = y/CONFIG_PLATFORM_I386_PC = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
           sed -i 's/CONFIG_PLATFORM_ARM_AARCH64 = n/CONFIG_PLATFORM_ARM_AARCH64 = y/g' drivers/net/wireless/realtek/rtl8812au/Makefile
-
           sed -i 's/CONFIG_RTW_NAPI = y/CONFIG_RTW_NAPI = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
           sed -i 's/CONFIG_RTW_GRO = y/CONFIG_RTW_GRO = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
           sed -i 's/CONFIG_RTW_NETIF_SG = y/CONFIG_RTW_NETIF_SG = n/g' drivers/net/wireless/realtek/rtl8812au/Makefile
@@ -79,51 +77,46 @@ jobs:
 
           {
             echo 'ccflags-y += -DCONFIG_USE_USB_BUFFER_ALLOC_TX -DCONFIG_USE_USB_BUFFER_ALLOC_RX'
-            echo 'ccflags-y += -Wno-error -Wno-cast-function-type -Wno-incompatible-pointer-types -Wno-uninitialized -Wno-sometimes-uninitialized -Wno-tautological-overlap-compare -Wno-date-time -Wno-switch-bool -Wno-parentheses-equality'
-            echo 'EXTRA_CFLAGS += -Wno-error -Wno-cast-function-type -Wno-incompatible-pointer-types -Wno-uninitialized -Wno-sometimes-uninitialized -Wno-tautological-overlap-compare -Wno-date-time -Wno-switch-bool -Wno-parentheses-equality'
-            echo 'ccflags-y += -Dfilp_open=filp_open_dummy -Dkernel_read=kernel_read_dummy -Dkernel_write=kernel_write_dummy -Dkern_path=kern_path_dummy'
+            echo 'ccflags-y += -Wno-error -Wno-cast-function-type -Wno-incompatible-pointer-types'
+            echo 'ccflags-y += -Wno-uninitialized -Wno-sometimes-uninitialized -Wno-tautological-overlap-compare'
+            echo 'ccflags-y += -Wno-date-time -Wno-switch-bool -Wno-parentheses-equality'
+            echo 'EXTRA_CFLAGS += -Wno-error -Wno-cast-function-type -Wno-incompatible-pointer-types'
+            echo 'ccflags-y += -Dfilp_open=filp_open_dummy -Dkernel_read=kernel_read_dummy'
+            echo 'ccflags-y += -Dkernel_write=kernel_write_dummy -Dkern_path=kern_path_dummy'
             echo 'obj-m := $(MODULE_NAME).o'
           } >> drivers/net/wireless/realtek/rtl8812au/Makefile
 
           echo 'obj-y += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
 
-          # Only inject GKI stub fallbacks if they are not already present in the fork
           OSDEP_FILE=$(find drivers/net/wireless/realtek/rtl8812au -name "osdep_service_linux.c" -o -name "osdep_service.c" | head -n 1)
           if ! grep -q "filp_open_dummy" "$OSDEP_FILE"; then
             {
-              echo '/* GKI PREBUILT BYPASS - STUB FILE I/O */'
               echo '#include <linux/fs.h>'
               echo '#include <linux/namei.h>'
               echo '#include <linux/err.h>'
               echo '#include <linux/errno.h>'
-              echo 'struct file *filp_open_dummy(const char *filename, int flags, umode_t mode) { return ERR_PTR(-ENOENT); }'
-              echo 'ssize_t kernel_read_dummy(struct file *file, void *buf, size_t count, loff_t *pos) { return -EIO; }'
-              echo 'ssize_t kernel_write_dummy(struct file *file, const void *buf, size_t count, loff_t *pos) { return -EIO; }'
-              echo 'int kern_path_dummy(const char *name, unsigned int flags, struct path *path) { return -ENOENT; }'
+              echo 'struct file *filp_open_dummy(const char *f, int fl, umode_t m) { return ERR_PTR(-ENOENT); }'
+              echo 'ssize_t kernel_read_dummy(struct file *f, void *b, size_t c, loff_t *p) { return -EIO; }'
+              echo 'ssize_t kernel_write_dummy(struct file *f, const void *b, size_t c, loff_t *p) { return -EIO; }'
+              echo 'int kern_path_dummy(const char *n, unsigned int fl, struct path *p) { return -ENOENT; }'
             } >> "$OSDEP_FILE"
           fi
 
       - name: Apply KernelSU-Next & NetHunter Configs
         run: |
           cd workspace/aosp
-
-          # 1. Inject KernelSU-Next inline source code from the official 'next' branch
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
 
-          # 2. Capture raw git commit count and latest tag before Bazel sandboxing
           KSU_GIT_VER=$(git -C KernelSU-Next rev-list --count HEAD)
           KSU_TAG=$(git -C KernelSU-Next describe --tags --abbrev=0 2>/dev/null || echo "v3.4.2")
 
-          # 3. Hardcode values directly into Kbuild
           sed -i "s/KSU_GIT_VERSION := .*/KSU_GIT_VERSION := ${KSU_GIT_VER}/g" KernelSU-Next/kernel/Kbuild
           sed -i "s/KSU_VERSION_TAG := .*/KSU_VERSION_TAG := ${KSU_TAG}/g" KernelSU-Next/kernel/Kbuild
-          sed -i "1i KSU_GIT_VERSION := ${KSU_GIT_VER}\nKSU_GIT_VERSION_VALID := 1\nKSU_GIT_TAG := ${KSU_TAG}\nKSU_VERSION_TAG :=${KSU_TAG}" KernelSU-Next/kernel/Kbuild
+          sed -i "1i KSU_GIT_VERSION := ${KSU_GIT_VER}\nKSU_GIT_VERSION_VALID := 1\nKSU_GIT_TAG := ${KSU_TAG}\nKSU_VERSION_TAG := ${KSU_TAG}" KernelSU-Next/kernel/Kbuild
 
-          # 4. Disable check_defconfig in build.config.gki so custom gki_defconfig entries pass
           chmod u+w build.config.gki
           echo "DEFCONFIG=gki_defconfig" > build.config.gki
 
-          # 5. Append KernelSU-Next, NetHunter, ConfigFS, AFWall+, and Adapter Configs
           chmod u+w arch/arm64/configs/gki_defconfig
           {
             echo 'CONFIG_LOCALVERSION="-twk.v${{ env.CUSTOM_KERNEL_VERSION }}"'
@@ -253,10 +246,6 @@ jobs:
       - name: Track New Modules in Bazel (@//aosp:kernel_aarch64 & dist)
         run: |
           cd workspace
-
-          # 1. Register all 12 built modules inside aosp/modules.bzl (COMMON_GKI_MODULES_LIST)
-          #    so @//aosp:kernel_aarch64 copies them at [514/572], while leaving private/devices/google/
-          #    untouched so vendor_dlkm.img retains cfg80211.ko and mac80211.ko for internal Wi-Fi/BT!
           chmod u+w aosp/modules.bzl
           python3 -c '
           with open("aosp/modules.bzl", "r") as f:
@@ -283,8 +272,6 @@ jobs:
               f.write(content)
           '
 
-          # 2. Enable allow_duplicate_filenames in dist.bzl and via buildozer so [dist] at [572/572]
-          #    cleanly flattens out/shusky/dist/ without halting on duplicate .ko sources
           chmod u+w build/bazel_common_rules/dist/dist.bzl
           sed -i 's/allow_duplicate_filenames = False/allow_duplicate_filenames = True/g' build/bazel_common_rules/dist/dist.bzl
 
@@ -302,7 +289,7 @@ jobs:
             --notrim \
             --nokmi_symbol_list_strict_mode
 
-      - name: Package Kernel, Firmware & Safe AK3 Zip (Non-Shadowing)
+      - name: Package Flat Release Bundle (AK3 Zip + 3 Partition Images)
         run: |
           cd workspace
           mkdir -p bundle
@@ -318,7 +305,6 @@ jobs:
 
           cp -L out/shusky/dist/Image.lz4 AnyKernel3/
 
-          # Copy stripped production .ko modules strictly from out/shusky/dist/
           mkdir -p AnyKernel3/twk_drivers
           for ko in 8812au.ko mt76.ko mt76-usb.ko mt76x02-lib.ko mt76x02-usb.ko mt76x2-common.ko mt76x2u.ko btusb.ko btintel.ko btrtl.ko; do
             if [ -f "out/shusky/dist/$ko" ]; then
@@ -328,8 +314,93 @@ jobs:
             fi
           done
 
-          # Download MediaTek (both 'u' and non-'u') & Ralink firmware with fallbacks to prevent 404s
           mkdir -p AnyKernel3/twk_firmware
-          FW_BASE="https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain"
-          curl -fLSs "$FW_BASE/mediatek/mt7662u.bin" -o AnyKernel3/twk_firmware/mt7662u.bin || curl -fLSs "$FW_BASE/mt7662.bin" -o AnyKernel3/twk_firmware/mt7662u.bin
-          curl -fLSs "$FW_BASE/mediatek/mt76
+          FW_URL="https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain"
+          for fw in mt7662.bin mt7662_rom_patch.bin mt7662u.bin mt7662u_rom_patch.bin; do
+            curl -fLSs "$FW_URL/mediatek/$fw" -o "AnyKernel3/twk_firmware/$fw" || curl -fLSs "$FW_URL/$fw" -o "AnyKernel3/twk_firmware/$fw" || true
+          done
+          curl -fLSs "$FW_URL/rt2870.bin" -o AnyKernel3/twk_firmware/rt2870.bin || true
+
+          echo "VERIFYING STRIPPED DRIVERS & FIRMWARE:"
+          ls -lh AnyKernel3/twk_drivers/
+          ls -lh AnyKernel3/twk_firmware/
+
+          sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (v${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh
+
+          {
+            echo '# --- TWEAKER KERNEL NON-SHADOWING ADAPTER INJECTION ---'
+            echo 'ui_print " ";'
+            echo 'ui_print "- Staging Non-Shadowing NetHunter Drivers & Firmware...";'
+            echo 'mount /data;'
+            echo 'rm -rf /data/adb/modules/twk_nethunter_drivers'
+            echo 'MOD_DIR="/data/adb/modules/twk_nethunter_adapters"'
+            echo 'rm -rf $MOD_DIR'
+            echo 'mkdir -p $MOD_DIR/twk_firmware'
+            echo 'mkdir -p $MOD_DIR/twk_modules'
+            echo 'cp -f $home/twk_firmware/*.bin $MOD_DIR/twk_firmware/'
+            echo 'cp -f $home/twk_drivers/*.ko $MOD_DIR/twk_modules/'
+            echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
+            echo 'echo "name=Tweaker Kernel Adapters" >> $MOD_DIR/module.prop'
+            echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
+            echo 'echo "versionCode=128" >> $MOD_DIR/module.prop'
+            echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
+            echo 'echo "description=Non-shadowing RAM-disk firmware and modular drivers." >> $MOD_DIR/module.prop'
+            echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
+            echo 'echo "MOD_DIR=/data/adb/modules/twk_nethunter_adapters" >> $MOD_DIR/service.sh'
+            echo 'echo "until [ \"\$(getprop sys.boot_completed)\" = \"1\" ]; do sleep 2; done" >> $MOD_DIR/service.sh'
+            echo 'echo "mkdir -p /dev/twk_modules /dev/twk_firmware" >> $MOD_DIR/service.sh'
+            echo 'echo "LOG=/dev/twk_modules/load.log" >> $MOD_DIR/service.sh'
+            echo 'echo "ln -sf /vendor/firmware/* /dev/twk_firmware/ >> \$LOG 2>&1" >> $MOD_DIR/service.sh'
+            echo 'echo "ln -sf /vendor/firmware/mediatek/* /dev/twk_firmware/ >> \$LOG 2>&1" >> $MOD_DIR/service.sh'
+            echo 'echo "cp -f \$MOD_DIR/twk_firmware/*.bin /dev/twk_firmware/ >> \$LOG 2>&1" >> $MOD_DIR/service.sh'
+            echo 'echo "chmod 644 /dev/twk_firmware/*.bin" >> $MOD_DIR/service.sh'
+            echo 'echo "chcon -R u:object_r:vendor_file:s0 /dev/twk_firmware >> \$LOG 2>&1" >> $MOD_DIR/service.sh'
+            echo 'echo "cp -f \$MOD_DIR/twk_modules/*.ko /dev/twk_modules/ >> \$LOG 2>&1" >> $MOD_DIR/service.sh'
+            echo 'echo "chmod 644 /dev/twk_modules/*.ko" >> $MOD_DIR/service.sh'
+            echo 'echo "chcon -R u:object_r:vendor_file:s0 /dev/twk_modules >> \$LOG 2>&1" >> $MOD_DIR/service.sh'
+            echo 'echo "echo /dev/twk_firmware > /sys/module/firmware_class/parameters/path" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod /dev/twk_modules/mt76.ko >> \$LOG 2>&1 || true" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod /dev/twk_modules/mt76-usb.ko >> \$LOG 2>&1 || true" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod /dev/twk_modules/mt76x02-lib.ko >> \$LOG 2>&1 || true" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod /dev/twk_modules/mt76x02-usb.ko >> \$LOG 2>&1 || true" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod /dev/twk_modules/mt76x2-common.ko >> \$LOG 2>&1 || true" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod /dev/twk_modules/mt76x2u.ko >> \$LOG 2>&1 || true" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod /dev/twk_modules/btrtl.ko >> \$LOG 2>&1 || true" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod /dev/twk_modules/btintel.ko >> \$LOG 2>&1 || true" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod /dev/twk_modules/btusb.ko >> \$LOG 2>&1 || true" >> $MOD_DIR/service.sh'
+            echo 'echo "insmod /dev/twk_modules/8812au.ko rtw_drv_log_level=6 rtw_power_mgnt=0 rtw_switch_usb_mode=0 >> \$LOG 2>&1 || true" >> $MOD_DIR/service.sh'
+            echo 'chmod +x $MOD_DIR/service.sh'
+            echo 'ui_print "- Adapters staged successfully (no /vendor shadowing)!";'
+          } >> AnyKernel3/anykernel.sh
+
+          cd AnyKernel3
+          zip -r9 ../bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-anykernel3.zip * -x README.md
+          cd ..
+
+          for part in vendor_dlkm.img vendor_kernel_boot.img system_dlkm.img; do
+            if [ -f "out/shusky/dist/$part" ]; then
+              cp -L "out/shusky/dist/$part" "bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-$part"
+            else
+              SRC=$(find out/ -type f -name "$part" | head -n 1)
+              cp -L "$SRC" "bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-$part"
+            fi
+          done
+
+          echo "VERIFYING FLAT BUNDLE CONTENTS:"
+          ls -lh bundle/
+
+      - name: Upload Release Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: twk-v${{ env.CUSTOM_KERNEL_VERSION }}-release-package
+          path: workspace/bundle/*
+          if-no-files-found: error
+
+      - name: Ping Phone - Success
+        if: success()
+        run: curl -d "✅ Pixel 8 Pro Kernel v${{ env.CUSTOM_KERNEL_VERSION }} Build COMPLETE!" https://ntfy.sh/twk_pixel8_build_alerts
+
+      - name: Ping Phone - Failure
+        if: failure()
+        run: curl -d "❌ Pixel 8 Pro Kernel v${{ env.CUSTOM_KERNEL_VERSION }} Build FAILED!" https://ntfy.sh/twk_pixel8_build_alerts
+# END OF WORKFLOW
