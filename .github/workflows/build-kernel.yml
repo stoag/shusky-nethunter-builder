@@ -117,7 +117,7 @@ jobs:
           # 3. Hardcode values directly into Kbuild
           sed -i "s/KSU_GIT_VERSION := .*/KSU_GIT_VERSION := ${KSU_GIT_VER}/g" KernelSU-Next/kernel/Kbuild
           sed -i "s/KSU_VERSION_TAG := .*/KSU_VERSION_TAG := ${KSU_TAG}/g" KernelSU-Next/kernel/Kbuild
-          sed -i "1i KSU_GIT_VERSION := ${KSU_GIT_VER}\nKSU_GIT_VERSION_VALID := 1\nKSU_GIT_TAG := ${KSU_TAG}\nKSU_VERSION_TAG := ${KSU_TAG}" KernelSU-Next/kernel/Kbuild
+          sed -i "1i KSU_GIT_VERSION := ${KSU_GIT_VER}\nKSU_GIT_VERSION_VALID := 1\nKSU_GIT_TAG := ${KSU_TAG}\nKSU_VERSION_TAG :=${KSU_TAG}" KernelSU-Next/kernel/Kbuild
 
           # 4. Disable check_defconfig in build.config.gki so custom gki_defconfig entries pass
           chmod u+w build.config.gki
@@ -332,106 +332,4 @@ jobs:
           mkdir -p AnyKernel3/twk_firmware
           FW_BASE="https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain"
           curl -fLSs "$FW_BASE/mediatek/mt7662u.bin" -o AnyKernel3/twk_firmware/mt7662u.bin || curl -fLSs "$FW_BASE/mt7662.bin" -o AnyKernel3/twk_firmware/mt7662u.bin
-          curl -fLSs "$FW_BASE/mediatek/mt7662u_rom_patch.bin" -o AnyKernel3/twk_firmware/mt7662u_rom_patch.bin || curl -fLSs "$FW_BASE/mt7662_rom_patch.bin" -o AnyKernel3/twk_firmware/mt7662u_rom_patch.bin
-          curl -fLSs "$FW_BASE/mediatek/mt7662.bin" -o AnyKernel3/twk_firmware/mt7662.bin || curl -fLSs "$FW_BASE/mt7662.bin" -o AnyKernel3/twk_firmware/mt7662.bin || cp AnyKernel3/twk_firmware/mt7662u.bin AnyKernel3/twk_firmware/mt7662.bin
-          curl -fLSs "$FW_BASE/mediatek/mt7662_rom_patch.bin" -o AnyKernel3/twk_firmware/mt7662_rom_patch.bin || curl -fLSs "$FW_BASE/mt7662_rom_patch.bin" -o AnyKernel3/twk_firmware/mt7662_rom_patch.bin || cp AnyKernel3/twk_firmware/mt7662u_rom_patch.bin AnyKernel3/twk_firmware/mt7662_rom_patch.bin
-          curl -fLSs "$FW_BASE/rt2870.bin" -o AnyKernel3/twk_firmware/rt2870.bin || true
-
-          echo "VERIFYING STRIPPED DRIVERS & FIRMWARE:"
-          ls -lh AnyKernel3/twk_drivers/
-          ls -lh AnyKernel3/twk_firmware/
-
-          sed -i "s/kernel.string=.*/kernel.string=Tweaker Kernel (v${{ env.CUSTOM_KERNEL_VERSION }})/g" AnyKernel3/anykernel.sh
-
-          cat << 'EOF_AK3' >> AnyKernel3/anykernel.sh
-          # --- SAFE DRIVER STAGING (NO VENDOR OVERLAY SHADOWING) ---
-          ui_print " ";
-          ui_print "- Staging Non-Shadowing NetHunter Drivers & Firmware...";
-          mount /data;
-          rm -rf /data/adb/modules/twk_nethunter_drivers
-          MOD_DIR="/data/adb/modules/twk_nethunter_adapters"
-          rm -rf $MOD_DIR
-          mkdir -p $MOD_DIR/twk_firmware
-          mkdir -p $MOD_DIR/twk_modules
-          cp -f $home/twk_firmware/*.bin $MOD_DIR/twk_firmware/
-          cp -f $home/twk_drivers/*.ko $MOD_DIR/twk_modules/
-
-          cat << 'EOF_PROP' > $MOD_DIR/module.prop
-          id=twk_nethunter_adapters
-          name=Tweaker Kernel Adapters
-          version=v${{ env.CUSTOM_KERNEL_VERSION }}
-          versionCode=128
-          author=Tweaker
-          description=Non-shadowing RAM-disk firmware and modular drivers for external adapters.
-          EOF_PROP
-
-          cat << 'EOF_SVC' > $MOD_DIR/service.sh
-          #!/system/bin/sh
-          MOD_DIR="/data/adb/modules/twk_nethunter_adapters"
-          until [ "$(getprop sys.boot_completed)" = "1" ]; do
-            sleep 2
-          done
-
-          mkdir -p /dev/twk_modules /dev/twk_firmware
-          LOG="/dev/twk_modules/load.log"
-          echo "=== Tweaker Adapter Load Log $(date) ===" > "$LOG"
-
-          # Symlink all stock vendor firmware so internal Wi-Fi, BT, and Audio never lose access
-          ln -sf /vendor/firmware/* /dev/twk_firmware/ >> "$LOG" 2>&1
-          ln -sf /vendor/firmware/mediatek/* /dev/twk_firmware/ >> "$LOG" 2>&1
-
-          # Copy custom adapter firmware and modules into RAM disk
-          cp -f $MOD_DIR/twk_firmware/*.bin /dev/twk_firmware/ >> "$LOG" 2>&1
-          chmod 644 /dev/twk_firmware/*.bin
-          chcon -R u:object_r:vendor_file:s0 /dev/twk_firmware >> "$LOG" 2>&1
-
-          cp -f $MOD_DIR/twk_modules/*.ko /dev/twk_modules/ >> "$LOG" 2>&1
-          chmod 644 /dev/twk_modules/*.ko
-          chcon -R u:object_r:vendor_file:s0 /dev/twk_modules >> "$LOG" 2>&1
-
-          echo "/dev/twk_firmware" > /sys/module/firmware_class/parameters/path
-
-          # Load external adapter drivers and log any errors to /dev/twk_modules/load.log
-          insmod /dev/twk_modules/mt76.ko >> "$LOG" 2>&1 || true
-          insmod /dev/twk_modules/mt76-usb.ko >> "$LOG" 2>&1 || true
-          insmod /dev/twk_modules/mt76x02-lib.ko >> "$LOG" 2>&1 || true
-          insmod /dev/twk_modules/mt76x02-usb.ko >> "$LOG" 2>&1 || true
-          insmod /dev/twk_modules/mt76x2-common.ko >> "$LOG" 2>&1 || true
-          insmod /dev/twk_modules/mt76x2u.ko >> "$LOG" 2>&1 || true
-          insmod /dev/twk_modules/btrtl.ko >> "$LOG" 2>&1 || true
-          insmod /dev/twk_modules/btintel.ko >> "$LOG" 2>&1 || true
-          insmod /dev/twk_modules/btusb.ko >> "$LOG" 2>&1 || true
-          insmod /dev/twk_modules/8812au.ko rtw_drv_log_level=6 rtw_power_mgnt=0 rtw_switch_usb_mode=0 >> "$LOG" 2>&1 || true
-          EOF_SVC
-
-          chmod +x $MOD_DIR/service.sh
-          ui_print "- Adapters staged successfully (no /vendor shadowing)!";
-          EOF_AK3
-
-          sed -i "s/\${{ env.CUSTOM_KERNEL_VERSION }}/${{ env.CUSTOM_KERNEL_VERSION }}/g" AnyKernel3/anykernel.sh
-
-          cd AnyKernel3
-          zip -r9 ../bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-anykernel3.zip * -x README.md
-          cd ..
-
-          find out/ -type f -name "vendor_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_dlkm.img \;
-          find out/ -type f -name "vendor_kernel_boot.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-vendor_kernel_boot.img \;
-          find out/ -type f -name "system_dlkm.img" -exec cp -L {} bundle/twk-v${{ env.CUSTOM_KERNEL_VERSION }}-system_dlkm.img \;
-
-          echo "VERIFYING FLAT BUNDLE CONTENTS:"
-          ls -lh bundle/
-
-      - name: Upload Release Package
-        uses: actions/upload-artifact@v4
-        with:
-          name: twk-v${{ env.CUSTOM_KERNEL_VERSION }}-release-package
-          path: workspace/bundle/*
-          if-no-files-found: error
-
-      - name: Ping Phone - Success
-        if: success()
-        run: curl -d "✅ Pixel 8 Pro Kernel v${{ env.CUSTOM_KERNEL_VERSION }} Build COMPLETE!" https://ntfy.sh/twk_pixel8_build_alerts
-
-      - name: Ping Phone - Failure
-        if: failure()
-        run: curl -d "❌ Pixel 8 Pro Kernel v${{ env.CUSTOM_KERNEL_VERSION }} Build FAILED!" https://ntfy.sh/twk_pixel8_build_alerts
+          curl -fLSs "$FW_BASE/mediatek/mt76
