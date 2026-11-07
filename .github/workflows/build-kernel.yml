@@ -164,9 +164,9 @@ jobs:
             echo 'CONFIG_NETFILTER_XT_TARGET_MASQUERADE=y'
             echo 'CONFIG_WIREGUARD=y'
 
-            echo '# Wireless & Bluetooth Drivers (Core Built-In, Adapters as Modules)'
-            echo 'CONFIG_CFG80211=y'
-            echo 'CONFIG_MAC80211=y'
+            echo '# Wireless & Bluetooth Drivers'
+            echo 'CONFIG_CFG80211=m'
+            echo 'CONFIG_MAC80211=m'
             echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
             echo 'CONFIG_WLAN_VENDOR_MEDIATEK=y'
             echo 'CONFIG_MT76_CORE=m'
@@ -265,36 +265,40 @@ jobs:
 
       - name: Track New Modules in Bazel
         run: |
-          cd workspace/aosp
+          cd workspace
 
-          # 1. Inject custom modules into aosp/modules.bzl so @//aosp:kernel_aarch64 copies them cleanly
-          chmod u+w modules.bzl
+          # 1. Remove cfg80211.ko and mac80211.ko from device-level module_outs in private/devices/google/
+          #    so they don't collide with COMMON_GKI_MODULES_LIST in aosp/modules.bzl
+          find private/devices/google -type f \( -name "*.bzl" -o -name "BUILD.bazel" \) -exec chmod u+w {} +
+          find private/devices/google -type f \( -name "*.bzl" -o -name "BUILD.bazel" \) -exec sed -i '/"net\/wireless\/cfg80211\.ko",\?/d' {} +
+          find private/devices/google -type f \( -name "*.bzl" -o -name "BUILD.bazel" \) -exec sed -i '/"net\/mac80211\/mac80211\.ko",\?/d' {} +
+
+          # 2. Register cfg80211.ko, mac80211.ko, and all 10 custom modules in aosp/modules.bzl (deduplicated)
+          chmod u+w aosp/modules.bzl
           python3 -c '
-          with open("modules.bzl", "r") as f:
+          with open("aosp/modules.bzl", "r") as f:
               content = f.read()
           custom_mods = [
-              "    \"drivers/net/wireless/realtek/rtl8812au/8812au.ko\",",
-              "    \"drivers/net/wireless/mediatek/mt76/mt76.ko\",",
-              "    \"drivers/net/wireless/mediatek/mt76/mt76-usb.ko\",",
-              "    \"drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko\",",
-              "    \"drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko\",",
-              "    \"drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko\",",
-              "    \"drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko\",",
-              "    \"drivers/bluetooth/btusb.ko\",",
-              "    \"drivers/bluetooth/btintel.ko\",",
-              "    \"drivers/bluetooth/btrtl.ko\","
+              "net/wireless/cfg80211.ko",
+              "net/mac80211/mac80211.ko",
+              "drivers/net/wireless/realtek/rtl8812au/8812au.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76-usb.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko",
+              "drivers/bluetooth/btusb.ko",
+              "drivers/bluetooth/btintel.ko",
+              "drivers/bluetooth/btrtl.ko",
           ]
+          to_insert = [f"    \"{m}\"," for m in custom_mods if f"\"{m}\"" not in content]
           target = "COMMON_GKI_MODULES_LIST = ["
-          if target in content:
-              content = content.replace(target, target + "\n" + "\n".join(custom_mods), 1)
-          with open("modules.bzl", "w") as f:
+          if target in content and to_insert:
+              content = content.replace(target, target + "\n" + "\n".join(to_insert), 1)
+          with open("aosp/modules.bzl", "w") as f:
               f.write(content)
           '
-
-          # 2. Also ensure shusky:kernel tracks any device-level module_outs if explicitly defined
-          wget -qO buildozer https://github.com/bazelbuild/buildtools/releases/latest/download/buildozer-linux-amd64
-          chmod +x buildozer
-          ./buildozer 'add module_outs drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/bluetooth/btrtl.ko' //private/devices/google/shusky:kernel || true
 
       - name: Compile Pixel 8 Pro Kernel via Bazel
         run: |
