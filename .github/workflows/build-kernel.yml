@@ -1,4 +1,4 @@
-name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU-Next (v1.28)
+name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU-Next (v1.29)
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
   build-kernel:
     runs-on: ubuntu-latest
     env:
-      CUSTOM_KERNEL_VERSION: "1.28"
+      CUSTOM_KERNEL_VERSION: "1.29"
 
     steps:
       - name: Free Runner Disk Space
@@ -52,6 +52,7 @@ jobs:
       - name: Apply Kali NetHunter Subsystem Overrides
         run: |
           cd workspace/aosp
+          # Disable MAC80211 LEDs in Kconfig to prevent GKI symbol linker panics
           find drivers/net/wireless -name "Kconfig" -exec sed -i '/select MAC80211_LEDS/d' {} +
           sed -i 's/config MAC80211_LEDS/config MAC80211_LEDS\n\tdepends on BROKEN/g' net/mac80211/Kconfig
 
@@ -88,6 +89,7 @@ jobs:
 
           echo 'obj-y += rtl8812au/' >> drivers/net/wireless/realtek/Makefile
 
+          # Only inject GKI stub fallbacks if they are not already present in the fork
           OSDEP_FILE=$(find drivers/net/wireless/realtek/rtl8812au -name "osdep_service_linux.c" -o -name "osdep_service.c" | head -n 1)
           if ! grep -q "filp_open_dummy" "$OSDEP_FILE"; then
             {
@@ -117,6 +119,8 @@ jobs:
           chmod u+w build.config.gki
           echo "DEFCONFIG=gki_defconfig" > build.config.gki
 
+          # CORE ARCHITECTURE SHIFT: cfg80211 & mac80211 reverted to '=y' (Built-in)
+          # This prevents GKI symbol protection panics (-13 / -22) and allows bcmdhd4398 to bind natively.
           chmod u+w arch/arm64/configs/gki_defconfig
           {
             echo 'CONFIG_LOCALVERSION="-twk.v${{ env.CUSTOM_KERNEL_VERSION }}"'
@@ -146,8 +150,8 @@ jobs:
             echo 'CONFIG_IP6_NF_MANGLE=y'
             echo 'CONFIG_NETFILTER_XT_TARGET_MASQUERADE=y'
             echo 'CONFIG_WIREGUARD=y'
-            echo 'CONFIG_CFG80211=m'
-            echo 'CONFIG_MAC80211=m'
+            echo 'CONFIG_CFG80211=y'
+            echo 'CONFIG_MAC80211=y'
             echo 'CONFIG_WLAN_VENDOR_REALTEK=y'
             echo 'CONFIG_WLAN_VENDOR_MEDIATEK=y'
             echo 'CONFIG_MT76_CORE=m'
@@ -246,13 +250,14 @@ jobs:
       - name: Track New Modules in Bazel (@//aosp:kernel_aarch64 & dist)
         run: |
           cd workspace
+          
+          # We only track the 10 custom out-of-tree hardware modules here.
+          # cfg80211 and mac80211 are no longer compiled as .ko files.
           chmod u+w aosp/modules.bzl
           python3 -c '
           with open("aosp/modules.bzl", "r") as f:
               content = f.read()
           custom_mods = [
-              "net/wireless/cfg80211.ko",
-              "net/mac80211/mac80211.ko",
               "drivers/net/wireless/realtek/rtl8812au/8812au.ko",
               "drivers/net/wireless/mediatek/mt76/mt76.ko",
               "drivers/net/wireless/mediatek/mt76/mt76-usb.ko",
@@ -332,7 +337,6 @@ jobs:
             echo 'ui_print " ";'
             echo 'ui_print "- Staging Non-Shadowing NetHunter Drivers & Firmware...";'
             echo 'mount /data;'
-            echo 'rm -rf /data/adb/modules/twk_nethunter_drivers'
             echo 'MOD_DIR="/data/adb/modules/twk_nethunter_adapters"'
             echo 'rm -rf $MOD_DIR'
             echo 'mkdir -p $MOD_DIR/twk_firmware'
@@ -342,7 +346,7 @@ jobs:
             echo 'echo "id=twk_nethunter_adapters" > $MOD_DIR/module.prop'
             echo 'echo "name=Tweaker Kernel Adapters" >> $MOD_DIR/module.prop'
             echo 'echo "version=v${{ env.CUSTOM_KERNEL_VERSION }}" >> $MOD_DIR/module.prop'
-            echo 'echo "versionCode=128" >> $MOD_DIR/module.prop'
+            echo 'echo "versionCode=129" >> $MOD_DIR/module.prop'
             echo 'echo "author=Tweaker" >> $MOD_DIR/module.prop'
             echo 'echo "description=Non-shadowing RAM-disk firmware and modular drivers." >> $MOD_DIR/module.prop'
             echo 'echo "#!/system/bin/sh" > $MOD_DIR/service.sh'
@@ -369,6 +373,7 @@ jobs:
             echo 'echo "insmod /dev/twk_modules/btintel.ko >> \$LOG 2>&1 || true" >> $MOD_DIR/service.sh'
             echo 'echo "insmod /dev/twk_modules/btusb.ko >> \$LOG 2>&1 || true" >> $MOD_DIR/service.sh'
             echo 'echo "insmod /dev/twk_modules/8812au.ko rtw_drv_log_level=6 rtw_power_mgnt=0 rtw_switch_usb_mode=0 >> \$LOG 2>&1 || true" >> $MOD_DIR/service.sh'
+            echo 'echo "echo -n \"\" > /sys/module/firmware_class/parameters/path" >> $MOD_DIR/service.sh'
             echo 'chmod +x $MOD_DIR/service.sh'
             echo 'ui_print "- Adapters staged successfully (no /vendor shadowing)!";'
           } >> AnyKernel3/anykernel.sh
