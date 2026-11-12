@@ -391,6 +391,122 @@ jobs:
           grep -n -A45 "ZUMA_MODULE_OUTS" \
             private/devices/google/zuma/constants.bzl
 
+      - name: Register NetHunter Modules in AOSP GKI Target
+        run: |
+          cd workspace
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          build_file = Path("aosp/BUILD.bazel")
+
+          if not build_file.is_file():
+              raise SystemExit(f"Missing {build_file}")
+
+          build_file.chmod(
+              build_file.stat().st_mode | 0o200
+          )
+
+          source = build_file.read_text()
+
+          modules = [
+              "drivers/net/wireless/mediatek/mt76/mt76-usb.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko",
+              "drivers/net/wireless/realtek/rtl8812au/8812au.ko",
+              "drivers/bluetooth/btintel.ko",
+              "drivers/usb/serial/cp210x.ko",
+              "drivers/bluetooth/btrtl.ko",
+              "drivers/usb/serial/ch341.ko",
+              "net/wireless/cfg80211.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76.ko",
+              "drivers/bluetooth/btusb.ko",
+              "net/mac80211/mac80211.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko",
+              "drivers/net/can/usb/gs_usb.ko",
+          ]
+
+          # Find the exact kernel_aarch64 configuration.
+          pattern = re.compile(
+              r'("kernel_aarch64"\s*:\s*\{.*?)'
+              r'(\n[ \t]*)"module_implicit_outs"\s*:\s*'
+              r'get_gki_modules_list\("arm64"\)\s*,',
+              re.S
+          )
+
+          matches = list(pattern.finditer(source))
+
+          if len(matches) != 1:
+              raise SystemExit(
+                  "Expected exactly one kernel_aarch64 "
+                  f"configuration match; found {len(matches)}. "
+                  "No changes made."
+              )
+
+          match = matches[0]
+          prefix, implicit_line = match.groups()
+
+          # Do not add duplicate declarations.
+          config_start = match.start()
+          config_end = source.find(
+              "\n    },",
+              match.end()
+          )
+
+          if config_end == -1:
+              raise SystemExit(
+                  "Could not locate end of kernel_aarch64 "
+                  "configuration. No changes made."
+              )
+
+          config = source[config_start:config_end]
+
+          if '"module_outs"' in config:
+              raise SystemExit(
+                  "kernel_aarch64 already has module_outs. "
+                  "Inspect the existing list before changing it."
+              )
+
+          indent = implicit_line.split("\n")[-1]
+          module_indent = indent + "    "
+
+          declaration = (
+              implicit_line
+              + "\n"
+              + indent
+              + '"module_outs": [\n'
+          )
+
+          for module in modules:
+              declaration += (
+                  module_indent + f'"{module}",\n'
+              )
+
+          declaration += indent + "],"
+
+          updated = (
+              source[:match.start()]
+              + prefix
+              + declaration
+              + source[match.end():]
+          )
+
+          build_file.write_text(updated)
+
+          print("Successfully updated:", build_file)
+          print("Registered modules:", len(modules))
+          print("\nDeclared module outputs:")
+
+          for module in modules:
+              print("  " + module)
+          PY
+
+          echo "===== UPDATED AOSP KERNEL CONFIGURATION ====="
+          sed -n '1,100p' aosp/BUILD.bazel
+
+
       - name: Compile Pixel 8 Pro Kernel via Bazel
         run: |
           cd workspace
