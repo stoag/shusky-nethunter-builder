@@ -1,12 +1,4 @@
-name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU-Next (v1.32)
-
-on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-
-jobs:name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU-Next (v1.33)
+name: Build Pixel 8 Pro (shusky) - NetHunter + KernelSU-Next (v1.33)
 
 on:
   push:
