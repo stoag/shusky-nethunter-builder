@@ -310,9 +310,7 @@ jobs:
             --//build/kernel/kleaf:use_prebuilt_gki=false \
             --no//private/devices/google/common:download_prebuilt_gki_fips140 \
             --notrim \
-            --nokmi_symbol_list_strict_mode \
-            --//build/kernel/kleaf:kbuild_build_user=Tweaker \
-            --//build/kernel/kleaf:kbuild_build_host=twk-v${{ env.CUSTOM_KERNEL_VERSION }}
+            --nokmi_symbol_list_strict_mode 
 
       - name: Package Flat Release Bundle
         run: |
