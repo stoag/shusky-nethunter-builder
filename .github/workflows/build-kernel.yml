@@ -297,45 +297,99 @@ jobs:
             fi
           done
 
-      - name: Register Additional Modules in Shusky Kleaf Target
+      - name: Register Additional Modules in Zuma Kleaf Constants
         run: |
           cd workspace
+
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
-          build_file = Path("private/devices/google/shusky/BUILD.bazel")
+          build_file = Path(
+              "private/devices/google/zuma/constants.bzl"
+          )
+
           if not build_file.is_file():
-              raise SystemExit(f"Missing expected Shusky BUILD file: {build_file}")
-
-          build_file.chmod(build_file.stat().st_mode | 0o200)
-          source = build_file.read_text()
-          old = "    module_outs = ZUMA_MODULE_OUTS,"
-          new = """    module_outs = ZUMA_MODULE_OUTS + [
-              # Additional NetHunter and USB wireless-adapter modules.
-              "drivers/bluetooth/btintel.ko",
-              "drivers/bluetooth/btrtl.ko",
-              "drivers/bluetooth/btusb.ko",
-              "drivers/net/can/usb/gs_usb.ko",
-              "drivers/net/wireless/mediatek/mt76/mt76.ko",
-              "drivers/net/wireless/mediatek/mt76/mt76-usb.ko",
-              "drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko",
-              "drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko",
-              "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko",
-              "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko",
-              "drivers/net/wireless/realtek/rtl8812au/8812au.ko",
-              "drivers/usb/serial/ch341.ko",
-              "drivers/usb/serial/cp210x.ko",
-          ],"""
-          count = source.count(old)
-          if count != 1:
               raise SystemExit(
-                  f"Expected exactly one '{old}' in {build_file}; found {count}. "
-                  "Refusing to modify an unexpected BUILD file."
+                  f"Missing expected file: {build_file}"
               )
 
-          build_file.write_text(source.replace(old, new, 1))
-          print(f"Updated {build_file}: added custom module outputs.")
+          build_file.chmod(
+              build_file.stat().st_mode | 0o200
+          )
+
+          source = build_file.read_text()
+
+          # Locate the shared ZUMA_MODULE_OUTS list.
+          pattern = re.compile(
+              r"(?ms)^(ZUMA_MODULE_OUTS\s*=\s*\[)(.*?)(^\])"
+          )
+
+          match = pattern.search(source)
+
+          if not match:
+              raise SystemExit(
+                  "Could not locate ZUMA_MODULE_OUTS list. "
+                  "No changes made."
+              )
+
+          header, body, closing = match.groups()
+
+          # These are the additional modules identified
+          # in the previous Bazel build output.
+          additions = {
+              "drivers/bluetooth/btintel.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76-usb.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko",
+              "drivers/net/wireless/realtek/rtl8812au/8812au.ko",
+          }
+
+          existing = set(
+              re.findall(
+                  r'"([^"]+\.ko)"',
+                  body
+              )
+          )
+
+          combined = sorted(existing | additions)
+
+          # Preserve existing comments in the list.
+          comments = [
+              line for line in body.splitlines()
+              if line.strip().startswith("#")
+          ]
+
+          new_body = "\n"
+
+          for comment in comments:
+              new_body += comment + "\n"
+
+          for module in combined:
+              new_body += f'    "{module}",\n'
+
+          replacement = header + new_body + closing
+
+          updated = (
+              source[:match.start()]
+              + replacement
+              + source[match.end():]
+          )
+
+          build_file.write_text(updated)
+
+          print("Updated:", build_file)
+          print("Existing module entries:", len(existing))
+          print("Additional entries:", len(additions - existing))
+          print("\nFinal ZUMA_MODULE_OUTS:")
+
+          for module in combined:
+              print("  " + module)
           PY
+
+          echo "===== UPDATED ZUMA MODULE OUTPUTS ====="
+          grep -n -A45 "ZUMA_MODULE_OUTS" \
+            private/devices/google/zuma/constants.bzl
 
       - name: Compile Pixel 8 Pro Kernel via Bazel
         run: |
