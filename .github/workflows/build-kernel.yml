@@ -53,6 +53,16 @@ jobs:
           repo init -u "$MANIFEST" -b "$BRANCH" --depth=1
           repo sync -c -j$(nproc) --no-tags --no-clone-bundle
 
+      - name: Inspect Kleaf Build Configuration
+        run: |
+          cd workspace
+
+          echo "===== COMMON KERNELS CONFIGURATION ====="
+          nl -ba build/kernel/kleaf/common_kernels.bzl | sed -n '540,650p'
+
+          echo "===== AOSP BUILD CONFIGURATION ====="
+          nl -ba aosp/BUILD.bazel | sed -n '130,165p'
+
       - name: Inspect AOSP Bazel Kernel Definition
         run: |
           cd workspace
