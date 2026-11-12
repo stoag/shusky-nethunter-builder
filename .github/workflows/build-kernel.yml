@@ -53,6 +53,15 @@ jobs:
           repo init -u "$MANIFEST" -b "$BRANCH" --depth=1
           repo sync -c -j$(nproc) --no-tags --no-clone-bundle
 
+      - name: Inspect AOSP Bazel Kernel Definition
+        run: |
+          cd workspace
+          echo "===== AOSP BUILD.bazel ====="
+          sed -n '1,240p' aosp/BUILD.bazel
+          echo "===== SHUSKY BUILD.bazel ====="
+          grep -n -A35 -B10 "module_outs" \
+            private/devices/google/shusky/BUILD.bazel
+            
       - name: Apply Kali NetHunter Subsystem Overrides
         run: |
           cd workspace/aosp
