@@ -61,6 +61,19 @@ jobs:
           echo "===== SHUSKY BUILD.bazel ====="
           grep -n -A35 -B10 "module_outs" \
             private/devices/google/shusky/BUILD.bazel
+          echo "===== SHUSKY BUILD FILE: TOP ====="
+          sed -n '1,100p' private/devices/google/shusky/BUILD.bazel
+
+          echo "===== ZUMA MODULE OUTPUT DEFINITION ====="
+          grep -R -n -A100 -B10 "ZUMA_MODULE_OUTS" private/devices/google/zuma private/devices/google/shusky
+        
+      - name: Dump Build.bazel Files for Review
+        uses: actions/upload-artifact@v4
+        with:
+          name: bazel-build-scripts
+          path: |
+            workspace/aosp/BUILD.bazel
+            workspace/private/devices/google/shusky/BUILD.bazel
             
       - name: Apply Kali NetHunter Subsystem Overrides
         run: |
