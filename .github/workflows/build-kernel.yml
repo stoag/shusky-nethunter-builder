@@ -275,7 +275,6 @@ jobs:
             fi
           done
 
-
       - name: Track New Modules in Bazel
         run: |
           cd workspace
@@ -293,6 +292,30 @@ jobs:
           # DO NOT add mac80211.ko or cfg80211.ko here; doing so causes a Starlark filegroup crash!
           K_MODS="drivers/net/wireless/realtek/rtl8812au/8812au.ko drivers/bluetooth/btrtl.ko drivers/bluetooth/btusb.ko drivers/bluetooth/btintel.ko drivers/net/wireless/mediatek/mt76/mt76.ko drivers/net/wireless/mediatek/mt76/mt76-usb.ko drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko drivers/usb/serial/ch341.ko drivers/usb/serial/cp210x.ko drivers/net/can/usb/gs_usb.ko"
           ./buildozer "add module_outs $K_MODS" //private/devices/google/shusky:kernel
+          
+          # 2. Track ALL 15 modules (including mac80211 & cfg80211) in the core GKI kernel
+          # We inject them directly into COMMON_GKI_MODULES_LIST because @//aosp:kernel_aarch64 is a dynamic macro
+          chmod u+w aosp/modules.bzl || true
+          cat << 'EOF' >> aosp/modules.bzl
+          
+          COMMON_GKI_MODULES_LIST += [
+              "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko",
+              "net/mac80211/mac80211.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76.ko",
+              "drivers/bluetooth/btusb.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko",
+              "net/wireless/cfg80211.ko",
+              "drivers/usb/serial/ch341.ko",
+              "drivers/bluetooth/btrtl.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76-usb.ko",
+              "drivers/usb/serial/cp210x.ko",
+              "drivers/bluetooth/btintel.ko",
+              "drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko",
+              "drivers/net/wireless/realtek/rtl8812au/8812au.ko",
+              "drivers/net/can/usb/gs_usb.ko",
+          ]
+          EOF
           
       - name: Compile Pixel 8 Pro Kernel via Bazel
         run: |
