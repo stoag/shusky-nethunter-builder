@@ -381,14 +381,14 @@ jobs:
             echo 'mt76x2_reset_wlan'
             echo 'mt76x2_set_sar_specs'
           } > missing_symbols.txt
-          for f in aosp/android/abi_gki_aarch64*; do
-            if [ -f "$f" ]; then
-              echo "Missing configured KMI symbol list: $f" >&2
-              exit 1
-            fi
-            chmod u+w "$f"
-            printf '\n' >> "$f"
-            cat missing_symbols.txt >> "$f"
+          f=aosp/android/abi_gki_aarch64
+          if [ ! -f "$f" ]; then
+            echo "Missing configured KMI symbol list: $f" >&2
+            exit 1
+          fi
+          chmod u+w "$f"
+          printf '\n' >> "$f"
+          cat missing_symbols.txt >> "$f"
           done
 
       - name: Register Additional Modules in Zuma Kleaf Constants
