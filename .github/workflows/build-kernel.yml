@@ -385,7 +385,7 @@ jobs:
           # Updating both GKI and Pixel-specific (shusky) KMI Symbol lists.
           for f in \
             aosp/android/abi_gki_aarch64 \
-            common/android/abi_gki_aarch64_pixel; do
+            aosp/android/abi_gki_aarch64_pixel; do
             
           if [ ! -f "$f" ]; then
             echo "Missing configured KMI symbol list: $f" >&2
