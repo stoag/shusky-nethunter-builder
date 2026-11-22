@@ -389,7 +389,6 @@ jobs:
           chmod u+w "$f"
           printf '\n' >> "$f"
           cat missing_symbols.txt >> "$f"
-          done
 
       - name: Register Additional Modules in Zuma Kleaf Constants
         run: |
