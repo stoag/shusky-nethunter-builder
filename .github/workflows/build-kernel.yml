@@ -301,7 +301,7 @@ jobs:
             echo 'usb_unpoison_urb'
             echo 'wake_up_bit'
             echo 'yield'
-                        echo '____mt76_poll_msec'
+            echo '____mt76_poll_msec'
             echo '__mt76_mcu_msg_alloc'
             echo '__mt76_poll'
             echo '__mt76_sta_remove'
@@ -381,15 +381,29 @@ jobs:
             echo 'mt76x2_reset_wlan'
             echo 'mt76x2_set_sar_specs'
           } > missing_symbols.txt
-          f=aosp/android/abi_gki_aarch64
+
+          # Updating both GKI and Pixel-specific (shusky) KMI Symbol lists.
+          for f in \
+            aosp/android/abi_gki_aarch64 \
+            common/android/abi_gki_aarch64_pixel; do
+            
           if [ ! -f "$f" ]; then
             echo "Missing configured KMI symbol list: $f" >&2
             exit 1
           fi
+          
           chmod u+w "$f"
           printf '\n' >> "$f"
           cat missing_symbols.txt >> "$f"
 
+          echo "===== UPDATED: $f ====="
+            grep -n -E '^(mt76_alloc_device|__hci_cmd_sync|usb_submit_urb)$' "$f" || true
+          done
+
+          echo "===== SHUSKY KMI CONFIGURATION ====="
+          grep -n -C 3 'kmi_symbol_list' \
+            private/devices/google/shusky/BUILD.bazel
+            
       - name: Register Additional Modules in Zuma Kleaf Constants
         run: |
           cd workspace
