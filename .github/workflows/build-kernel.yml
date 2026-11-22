@@ -535,31 +535,34 @@ jobs:
           p = Path("aosp/BUILD.bazel")
           s = p.read_text()
 
-          needle = '        "module_implicit_outs": get_gki_modules_list("arm64"),\n'
+          needle = '        "module_implicit_outs": get_gki_modules_list("arm64"),\n' 
           assert s.count(needle) >= 1, "Could not find kernel_aarch64 configuration"
 
-          module_list = '''        "module_outs": [
-              "drivers/net/wireless/mediatek/mt76/mt76-usb.ko",
-              "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko",
-              "drivers/net/wireless/realtek/rtl8812au/8812au.ko",
-              "drivers/bluetooth/btintel.ko",
-              "drivers/usb/serial/cp210x.ko",
-              "drivers/bluetooth/btrtl.ko",
-              "drivers/usb/serial/ch341.ko",
-              "net/wireless/cfg80211.ko",
-              "drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko",
-              "drivers/net/wireless/mediatek/mt76/mt76.ko",
-              "drivers/bluetooth/btusb.ko",
-              "net/mac80211/mac80211.ko",
-              "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko",
-              "drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko",
-              "drivers/net/can/usb/gs_usb.ko",
+          replacement = '''        "module_implicit_outs": get_gki_modules_list("arm64") + [
+                      "drivers/bluetooth/btintel.ko",
+                      "drivers/net/wireless/mediatek/mt76/mt76-usb.ko",
+                      "drivers/net/wireless/mediatek/mt76/mt76x02-lib.ko",
+                      "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2u.ko",
+                      "drivers/net/wireless/realtek/rtl8812au/8812au.ko",
+                      "net/mac80211/mac80211.ko",
+                      "net/wireless/cfg80211.ko",
+          ],
+          "module_outs": [
+                      "drivers/usb/serial/cp210x.ko",
+                      "drivers/bluetooth/btrtl.ko",
+                      "drivers/usb/serial/ch341.ko",
+                      "drivers/net/wireless/mediatek/mt76/mt76.ko",
+                      "drivers/bluetooth/btusb.ko",
+                      "drivers/net/wireless/mediatek/mt76/mt76x2/mt76x2-common.ko",
+                      "drivers/net/wireless/mediatek/mt76/mt76x02-usb.ko",
+                      "drivers/net/can/usb/gs_usb.ko",
           ],
           '''
 
-          s = s.replace(needle, needle + module_list, 1)
+          s = s.replace(needle, replacement, 1)
           p.write_text(s)
-          print("Registered additional module outputs successfully.")
+          print("Registered GKI module outputs without duplicating Shusky modules.")
+
           PY
 
           echo "===== VERIFY COMMON KERNEL PATCH ====="
