@@ -581,6 +581,29 @@ jobs:
             --notrim \
             --nokmi_symbol_list_strict_mode
 
+      - name: Inspect Wireless Module Build Sources
+        run: |
+          cd workspace
+
+          echo "===== WIRELESS MODULE OUTPUTS ====="
+
+          for dir in out/aosp/dist out/shusky/dist; do
+            if [ -d "$dir" ]; then
+              echo "===== $dir ====="
+              find "$dir" -maxdepth 1 \
+                \( -name 'mac80211.ko' \
+                -o -name 'cfg80211.ko' \
+                -o -name 'mt76*.ko' \) \
+                -print
+            fi
+          done
+
+          echo "===== WIRELESS MODULE SYMBOL VERSIONS ====="
+          find out -name '*Module.symvers' \
+            -not -path '*/sandbox/*' \
+            -exec grep -H -w 'ieee80211_alloc_hw_nm' {} \; \
+            2>/dev/null | head -n 30 || true
+
       - name: Package Flat Release Bundle
         run: |
           cd workspace
