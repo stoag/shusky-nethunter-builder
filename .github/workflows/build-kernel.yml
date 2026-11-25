@@ -581,6 +581,32 @@ jobs:
             --notrim \
             --nokmi_symbol_list_strict_mode
 
+      - name: Diagnose MT76 Symbol Version Mismatch
+        run: |
+          cd workspace
+
+          if ! command -v modprobe >/dev/null 2>&1; then
+            sudo apt-get install -y kmod
+          fi
+
+          echo "===== MT76 EXPECTED SYMBOL VERSION ====="
+          modprobe --show-modversions \
+            out/shusky/dist/mt76.ko |
+            grep -F 'ieee80211_alloc_hw_nm' || true
+
+          echo "===== GKI MAC80211 EXPORTED VERSION ====="
+          grep -w 'ieee80211_alloc_hw_nm' \
+            out/shusky/dist/kernel_aarch64_Module.symvers
+
+          echo "===== SHUSKY MAC80211 EXPORTED VERSION ====="
+          find out/bazel -type f \
+            -path '*/private/devices/google/shusky/kernel/Module.symvers' \
+            -exec grep -H -w 'ieee80211_alloc_hw_nm' {} \; \
+            2>/dev/null | head -n 5
+
+          echo "===== PACKAGED MT76 FILE HASH ====="
+          sha256sum out/shusky/dist/mt76.ko
+
       - name: Inspect Wireless Module Build Sources
         run: |
           cd workspace
