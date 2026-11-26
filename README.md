@@ -39,6 +39,7 @@ Custom GKI kernel for the **Google Pixel 8 Pro (`husky` / `shusky`)** on **Andro
 - Unlocked bootloader
 - Pixel 8 Pro (`husky`) running Android 16
 - Root access with **Kernel Flasher** installed (and **KernelSU-Next Manager** for module management)
+- https://github.com/capntrips/KernelFlasher/releases/download/v1.0.0-alpha20/KernelFlasher-v1.0.0-alpha20.apk
 
 ### Installation
 1. Download the `twk-v1.36-release-package` archive from Releases and extract it to a folder on your phone's internal storage. You will have four files:
